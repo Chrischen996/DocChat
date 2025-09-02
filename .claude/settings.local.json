@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(git clone:*)",
+      "Bash(source ~/.bashrc)",
+      "Bash(alias claude)",
+      "Bash(claude mcp --help)",
+      "Bash(claude mcp list)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\Users\\Cccch\\.claude"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+import createMiddleware from 'next-intl/middleware';
+
+export default createMiddleware({
+  // A list of all locales that are supported
+  locales: ['en', 'zh'],
+
+  // Used when no locale matches
+  defaultLocale: 'en'
+});
+
+export const config = {
+  // Match only internationalized pathnames
+  matcher: [
+    // Match the root path
+    '/',
+    // Match all paths with locale prefixes
+    '/(zh|en)/:path*',
+    // Exclude Next.js internals and static files
+    '/((?!_next|_vercel|.*\\..*).*)'
+  ]
+};
