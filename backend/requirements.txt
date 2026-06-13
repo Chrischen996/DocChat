@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+llama-index
+llama-index-llms-openai
+llama-index-embeddings-nvidia
+python-dotenv
+qdrant-client
+marker-pdf
+pymupdf
+pydantic
+python-multipart
+llama-index-vector-stores-qdrant
+httpx
+python-docx
+openpyxl
+python-pptx
+xlrd
