@@ -18,7 +18,7 @@ function CitationChip({
   return (
     <a
       href={href}
-      className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[#d4d4cc] bg-[#f0f0ec] px-1.5 align-super font-mono text-[11px] font-semibold leading-none text-[#6b6b6b] transition-colors hover:border-[#b8b8b0] hover:bg-[#e8e8e3]"
+      className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-light)] px-1.5 align-super font-mono text-[11px] font-semibold leading-none text-[var(--text-secondary)] transition-colors hover:border-[var(--text-tertiary)] hover:bg-white"
       title={`View source ${label}`}
     >
       {label.replace("[", "").replace("]", "")}
@@ -91,7 +91,7 @@ function MarkdownTable({
   const [head = [], ...body] = rows;
 
   return (
-    <div className="my-4 overflow-x-auto rounded-lg border border-[var(--border)]">
+    <div className="my-4 w-full overflow-x-auto rounded-lg border border-[var(--border)]">
       <table className="min-w-full border-collapse text-left text-xs">
         <thead className="bg-[var(--accent-light)] text-[var(--text-primary)]">
           <tr>
@@ -146,12 +146,11 @@ function MarkdownAnswer({
       }
       i += 1;
       blocks.push(
-        <pre
-          key={blocks.length}
-          className="my-4 overflow-x-auto rounded-lg bg-[#2d2d2d] p-3 text-xs leading-5 text-[#fafaf8]"
-        >
-          <code>{codeLines.join("\n")}</code>
-        </pre>
+        <div key={blocks.length} className="my-4 w-full overflow-x-auto rounded-md bg-[#313131]">
+          <pre className="p-3 text-xs leading-5 text-[#faf9f7] min-w-fit">
+            <code>{codeLines.join("\n")}</code>
+          </pre>
+        </div>
       );
       continue;
     }
@@ -275,7 +274,7 @@ export default function AnswerDisplay({
   if (!answer) return null;
 
   return (
-    <div className="markdown-content">
+    <div className="markdown-content text-[var(--text-primary)]">
       <MarkdownAnswer text={answer} sourceAnchorPrefix={sourceAnchorPrefix} />
     </div>
   );

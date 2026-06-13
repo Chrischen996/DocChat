@@ -88,3 +88,58 @@ class DeleteResponse(BaseModel):
 
     message: str
     vectors_deleted: int
+
+
+class TemplateInfo(BaseModel):
+    """模板配置"""
+
+    id: str
+    name: str
+    description: str
+    default_prompt: str
+    workflow_id: str
+
+
+class TemplateListResponse(BaseModel):
+    """模板列表响应"""
+
+    templates: list[TemplateInfo]
+    total: int
+
+
+class GeneratedAsset(BaseModel):
+    """生成资产"""
+
+    id: str
+    asset_type: str
+    title: str
+    content: str = ""
+    image_data: str = ""
+    format: str = ""
+    source_template_id: str | None = None
+    source_question: str | None = None
+
+
+class AssetListResponse(BaseModel):
+    """生成资产列表响应"""
+
+    assets: list[GeneratedAsset]
+    total: int
+
+
+class AgentRequest(BaseModel):
+    """Agent 执行请求"""
+
+    input: str
+    template_id: str | None = None
+    history: list[ChatMessage] = []
+
+
+class AgentResponse(BaseModel):
+    """Agent 执行响应"""
+
+    answer: str
+    sources: list[SourceNode]
+    asset: GeneratedAsset | None = None
+    mode: str = "assistant"
+    total_ms: int = 0

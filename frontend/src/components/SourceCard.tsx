@@ -31,7 +31,7 @@ export default function SourceCard({
   return (
     <div
       id={anchorId}
-      className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+      className="surface-panel min-w-0 rounded-xl px-3 py-2 text-sm"
     >
       <div className="flex items-start gap-2">
         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--accent-light)] text-[10px] font-semibold text-[var(--text-secondary)]">
@@ -41,7 +41,7 @@ export default function SourceCard({
           <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
             <span className="truncate">{source.file_name}</span>
           </div>
-          <p className="mt-1 leading-relaxed text-[var(--text-primary)]">
+          <p className="mt-1 break-words leading-relaxed text-[var(--text-primary)]">
             {expanded ? source.text : snippet}
           </p>
           {isLong && (

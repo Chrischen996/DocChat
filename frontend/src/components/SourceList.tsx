@@ -10,7 +10,7 @@ export default function SourceList({ sources, anchorPrefix }: SourceListProps) {
   if (sources.length === 0) return null;
 
   return (
-    <div className="mt-4 space-y-2">
+    <div className="mt-4 min-w-0 space-y-2">
       <div className="flex items-center gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
           来源

@@ -1,31 +1,73 @@
 from pathlib import Path
+from time import sleep
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
-# 模块级别的全局变量
-_qdrant_client: QdrantClient = None
-_vector_store: QdrantVectorStore = None
+_qdrant_client: QdrantClient | None = None
+_vector_store: QdrantVectorStore | None = None
+_qdrant_source: str | None = None
 
 COLLECTION_NAME = "financial_reports"
-# 使用相对于当前文件的绝对路径，避免工作目录变动导致数据丢失
 QDRANT_STORAGE_PATH = str(
     Path(__file__).resolve().parent.parent.parent / "data" / "qdrant_storage"
 )
+DEFAULT_QDRANT_URL = "http://localhost:6333"
+
+
+def _build_client(url: str | None, path: str | None) -> QdrantClient:
+    if url:
+        return QdrantClient(url=url)
+    if path:
+        return QdrantClient(path=path)
+    return QdrantClient(path=QDRANT_STORAGE_PATH)
 
 
 def init_qdrant(
     collection_name: str = COLLECTION_NAME,
-    path: str = QDRANT_STORAGE_PATH,
+    url: str | None = None,
+    path: str | None = None,
 ) -> QdrantVectorStore:
-    """
-    初始化 Qdrant 向量数据库客户端。
-    使用本地文件存储模式，无需启动独立的 Qdrant 服务器。
-    """
-    global _qdrant_client, _vector_store
+    global _qdrant_client, _vector_store, _qdrant_source
 
-    _qdrant_client = QdrantClient(path=path)
+    source_key = url or path or QDRANT_STORAGE_PATH
+    if _qdrant_client is not None and _qdrant_source == source_key:
+        return _vector_store
+
+    if _qdrant_client is not None:
+        close_qdrant()
+
+    if url:
+        _qdrant_client = QdrantClient(url=url)
+        _qdrant_source = url
+    else:
+        qdrant_path = path or QDRANT_STORAGE_PATH
+        try:
+            _qdrant_client = QdrantClient(path=qdrant_path)
+        except RuntimeError as exc:
+            if "already accessed by another instance" not in str(exc):
+                raise
+
+            print(
+                f"[QDRANT] Storage lock is busy at {qdrant_path}. Waiting for it to be released..."
+            )
+            last_error: Exception | None = exc
+            for _ in range(5):
+                sleep(0.5)
+                try:
+                    _qdrant_client = QdrantClient(path=qdrant_path)
+                    break
+                except RuntimeError as retry_exc:
+                    last_error = retry_exc
+                    if "already accessed by another instance" not in str(retry_exc):
+                        raise
+            else:
+                raise RuntimeError(
+                    "Qdrant local storage is locked by another process. "
+                    "Stop the other backend instance, or start an external Qdrant service."
+                ) from last_error
+        _qdrant_source = qdrant_path
 
     _vector_store = QdrantVectorStore(
         client=_qdrant_client,
@@ -36,33 +78,34 @@ def init_qdrant(
     return _vector_store
 
 
+def close_qdrant() -> None:
+    global _qdrant_client, _vector_store, _qdrant_source
+
+    client = _qdrant_client
+    _qdrant_client = None
+    _vector_store = None
+    _qdrant_source = None
+
+    close_method = getattr(client, "close", None)
+    if callable(close_method):
+        close_method()
+
+
 def get_vector_store() -> QdrantVectorStore:
-    """获取已初始化的 QdrantVectorStore 实例"""
     if _vector_store is None:
         raise RuntimeError("Qdrant 尚未初始化，请先调用 init_qdrant()")
     return _vector_store
 
 
 def get_qdrant_client() -> QdrantClient:
-    """获取底层 QdrantClient（用于管理操作）"""
     if _qdrant_client is None:
         raise RuntimeError("Qdrant 尚未初始化，请先调用 init_qdrant()")
     return _qdrant_client
 
 
 def delete_document_vectors(file_name: str) -> int:
-    """
-    按 file_name payload 字段删除 Qdrant 中该文档的所有向量点。
-
-    Args:
-        file_name: 要删除的文档文件名（与上传时保持一致）
-
-    Returns:
-        删除的向量点数量
-    """
     client = get_qdrant_client()
 
-    # 先查询匹配的 points 数量（用于返回计数）
     points = client.scroll(
         collection_name=COLLECTION_NAME,
         scroll_filter=Filter(
@@ -81,7 +124,6 @@ def delete_document_vectors(file_name: str) -> int:
         print(f"[QDRANT] 未找到文档 '{file_name}' 的向量，无需删除")
         return 0
 
-    # 按 file_name 过滤删除
     client.delete(
         collection_name=COLLECTION_NAME,
         points_selector=Filter(

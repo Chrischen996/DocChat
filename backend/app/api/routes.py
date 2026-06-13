@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import shutil
 from functools import partial
 from pathlib import Path
@@ -9,10 +8,16 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.metadata_store import add_document, delete_document as delete_doc_meta, list_documents
+from app.core.asset_store import list_assets
+from app.core.template_store import ensure_templates, list_templates
 from app.core.qdrant_client import delete_document_vectors
 from app.models.schemas import (
+    AgentRequest,
+    AgentResponse,
     ChatRequest,
     ChatResponse,
+    AssetListResponse,
+    GeneratedAsset,
     DeleteResponse,
     DocumentInfo,
     DocumentListResponse,
@@ -21,8 +26,11 @@ from app.models.schemas import (
     QueryRequest,
     QueryResponse,
     SourceNode,
+    TemplateInfo,
+    TemplateListResponse,
     UploadResponse,
 )
+from app.services.agent_service import run_agent, stream_agent
 from app.services.parser import FinancialReportParser
 from app.services.chat_service import chat_with_assistant, stream_chat_with_assistant
 from app.services.image_service import generate_image
@@ -38,6 +46,78 @@ parser = FinancialReportParser()
 
 def _json_line(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+@router.get("/templates", response_model=TemplateListResponse, summary="获取模板列表")
+async def get_template_list():
+    ensure_templates()
+    templates = list_templates()
+    return TemplateListResponse(
+        templates=[TemplateInfo(**template) for template in templates],
+        total=len(templates),
+    )
+
+
+@router.get("/assets", response_model=AssetListResponse, summary="获取生成资产")
+async def get_generated_assets():
+    assets = list_assets()
+    return AssetListResponse(
+        assets=[GeneratedAsset(**asset) for asset in assets],
+        total=len(assets),
+    )
+
+
+@router.post("/agent/run", response_model=AgentResponse, summary="执行 Agent 工作流")
+async def run_agent_workflow(request: AgentRequest):
+    if not request.input.strip():
+        raise HTTPException(status_code=400, detail="输入不能为空")
+
+    try:
+        history = [message.model_dump() for message in request.history]
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(run_agent, request.input, template_id=request.template_id, history=history),
+        )
+        sources = [
+            SourceNode(
+                text=s["text"],
+                score=s.get("score"),
+                file_name=s.get("file_name"),
+            )
+            for s in result.get("sources", [])
+        ]
+        asset = result.get("asset")
+        return AgentResponse(
+            answer=result.get("answer", ""),
+            sources=sources,
+            asset=asset,
+            mode=result.get("mode", "assistant"),
+            total_ms=result.get("total_ms", 0),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent 执行失败: {str(e)}") from e
+
+
+@router.post("/agent/stream", summary="流式执行 Agent 工作流")
+async def stream_agent_workflow(request: AgentRequest):
+    if not request.input.strip():
+        raise HTTPException(status_code=400, detail="输入不能为空")
+
+    history = [message.model_dump() for message in request.history]
+
+    def generate():
+        try:
+            for event in stream_agent(request.input, template_id=request.template_id, history=history):
+                yield _json_line(event)
+        except Exception as e:
+            yield _json_line({"type": "error", "message": f"Agent 执行失败: {str(e)}"})
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson; charset=utf-8",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/upload", response_model=UploadResponse, summary="上传并索引文档")

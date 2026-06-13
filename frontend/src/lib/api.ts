@@ -1,13 +1,21 @@
-import { ChatMessage, ChatResponse, DocumentListResponse, QueryResponse, UploadResponse } from "@/types";
+import {
+  AgentRequest,
+  AgentResponse,
+  ChatMessage,
+  ChatResponse,
+  DocumentListResponse,
+  QueryResponse,
+  StreamEvent,
+  TemplateListResponse,
+  UploadResponse,
+} from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export type StreamEvent =
-  | { type: "status"; message: string }
-  | { type: "sources"; sources: QueryResponse["sources"]; retrieval_ms?: number }
-  | { type: "delta"; text: string }
-  | { type: "done"; retrieval_ms?: number; generation_ms?: number; total_ms?: number }
-  | { type: "error"; message: string };
+async function parseError(res: Response, fallback: string) {
+  const err = await res.json().catch(() => ({ detail: fallback }));
+  return err.detail || fallback;
+}
 
 async function streamNdjson(
   url: string,
@@ -21,12 +29,11 @@ async function streamNdjson(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "请求失败" }));
-    throw new Error(err.detail || "请求失败");
+    throw new Error(await parseError(res, "Request failed"));
   }
 
   if (!res.body) {
-    throw new Error("当前浏览器不支持流式响应");
+    throw new Error("Streaming is not supported in this browser");
   }
 
   const reader = res.body.getReader();
@@ -64,8 +71,7 @@ export async function uploadFile(file: File): Promise<UploadResponse> {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "上传失败" }));
-    throw new Error(err.detail || "上传失败");
+    throw new Error(await parseError(res, "Upload failed"));
   }
 
   return res.json();
@@ -87,8 +93,7 @@ export async function queryDocuments(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "查询失败" }));
-    throw new Error(err.detail || "查询失败");
+    throw new Error(await parseError(res, "Query failed"));
   }
 
   return res.json();
@@ -105,8 +110,7 @@ export async function chatWithAssistant(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "聊天失败" }));
-    throw new Error(err.detail || "聊天失败");
+    throw new Error(await parseError(res, "Chat failed"));
   }
 
   return res.json();
@@ -152,8 +156,7 @@ export async function generateImage(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "文生图请求失败" }));
-    throw new Error(err.detail || "文生图请求失败");
+    throw new Error(await parseError(res, "Image generation failed"));
   }
 
   return res.json();
@@ -163,11 +166,51 @@ export async function listDocuments(): Promise<DocumentListResponse> {
   const res = await fetch(`${API_BASE}/api/documents`);
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "获取文档列表失败" }));
-    throw new Error(err.detail || "获取文档列表失败");
+    throw new Error(await parseError(res, "Failed to load documents"));
   }
 
   return res.json();
+}
+
+export async function listTemplates(): Promise<TemplateListResponse> {
+  const res = await fetch(`${API_BASE}/api/templates`);
+
+  if (!res.ok) {
+    throw new Error(await parseError(res, "Failed to load templates"));
+  }
+
+  return res.json();
+}
+
+export async function runAgent(
+  input: string,
+  templateId?: string | null,
+  history: ChatMessage[] = []
+): Promise<AgentResponse> {
+  const res = await fetch(`${API_BASE}/api/agent/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input, template_id: templateId, history } satisfies AgentRequest),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res, "Agent run failed"));
+  }
+
+  return res.json();
+}
+
+export async function streamAgent(
+  input: string,
+  templateId: string | null,
+  history: ChatMessage[],
+  onEvent: (event: StreamEvent) => void
+) {
+  await streamNdjson(
+    `${API_BASE}/api/agent/stream`,
+    { input, template_id: templateId, history } satisfies AgentRequest,
+    onEvent
+  );
 }
 
 export async function deleteDocument(fileName: string): Promise<void> {
@@ -176,7 +219,6 @@ export async function deleteDocument(fileName: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "删除文档失败" }));
-    throw new Error(err.detail || "删除文档失败");
+    throw new Error(await parseError(res, "Delete failed"));
   }
 }

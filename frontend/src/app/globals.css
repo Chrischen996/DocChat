@@ -1,26 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --bg-page: #f5f5f0;
-  --bg-sidebar: #ecebe6;
-  --bg-sidebar-hover: #e0e0d8;
-  --bg-card: #fafaf8;
-  --text-primary: #2d2d2d;
-  --text-secondary: #6b6b6b;
-  --text-tertiary: #a0a0a0;
-  --border: #e3e3dd;
-  --border-light: #ecece5;
-  --accent: #5a5a5a;
-  --accent-hover: #404040;
-  --accent-light: #f0f0ec;
-  --divider: #e8e8e3;
+  color-scheme: light;
+  --bg-page: #f5f1eb;
+  --bg-page-alt: #fbf8f3;
+  --bg-surface: rgba(255, 255, 255, 0.82);
+  --bg-surface-strong: #ffffff;
+  --bg-sidebar: rgba(245, 240, 233, 0.9);
+  --bg-sidebar-hover: rgba(236, 228, 217, 0.95);
+  --bg-card: rgba(255, 255, 255, 0.88);
+  --text-primary: #191513;
+  --text-secondary: #5a4d43;
+  --text-tertiary: #8a7c70;
+  --border: rgba(220, 208, 197, 0.95);
+  --border-light: rgba(232, 224, 214, 0.95);
+  --accent: #d96f4a;
+  --accent-hover: #c85f3d;
+  --accent-light: rgba(217, 111, 74, 0.12);
+  --accent-soft: rgba(217, 111, 74, 0.18);
+  --divider: rgba(228, 218, 208, 0.95);
+  --shadow-soft: 0 18px 40px rgba(44, 36, 30, 0.08);
+  --shadow-card: 0 12px 30px rgba(44, 36, 30, 0.07);
 }
 
 @theme inline {
   --color-background: var(--bg-page);
   --color-foreground: var(--text-primary);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-inter);
 }
 
 * {
@@ -33,82 +40,133 @@ body {
   height: 100%;
 }
 
-body {
+html {
+  overflow-x: hidden;
   background: var(--bg-page);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 30%),
+    radial-gradient(circle at top right, rgba(217, 111, 74, 0.06), transparent 24%),
+    linear-gradient(180deg, var(--bg-page-alt) 0%, var(--bg-page) 100%);
   color: var(--text-primary);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
 
-/* Claude-style subtle selection */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg-page: #161412;
+    --bg-page-alt: #1c1917;
+    --bg-surface: rgba(34, 29, 26, 0.84);
+    --bg-surface-strong: #231f1c;
+    --bg-sidebar: rgba(25, 22, 20, 0.94);
+    --bg-sidebar-hover: rgba(42, 36, 32, 0.96);
+    --bg-card: rgba(33, 29, 26, 0.9);
+    --text-primary: #f5efe8;
+    --text-secondary: #d0c4b7;
+    --text-tertiary: #a49688;
+    --border: rgba(77, 67, 60, 0.9);
+    --border-light: rgba(61, 53, 47, 0.92);
+    --accent: #ee8b5f;
+    --accent-hover: #e47a49;
+    --accent-light: rgba(238, 139, 95, 0.16);
+    --accent-soft: rgba(238, 139, 95, 0.18);
+    --divider: rgba(62, 55, 49, 0.95);
+    --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.34);
+    --shadow-card: 0 12px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.03), transparent 28%),
+      radial-gradient(circle at top right, rgba(238, 139, 95, 0.08), transparent 22%),
+      linear-gradient(180deg, #1b1816 0%, #151312 100%);
+  }
+}
+
 ::selection {
-  background: #d4d4cc;
-  color: #1f1f1f;
+  background: var(--accent-soft);
+  color: var(--text-primary);
 }
 
-/* Minimal scrollbar */
 ::-webkit-scrollbar {
   width: 4px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #c8c8c0;
+  background: rgba(183, 167, 154, 0.75);
   border-radius: 2px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #adada5;
+  background: rgba(155, 138, 123, 0.9);
 }
 
-/* Claude-style focus ring */
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(90, 90, 90, 0.12);
+  box-shadow: none;
 }
 
-/* Smooth transitions for sidebar */
-.sidebar-transition {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-/* Markdown content styling */
 .markdown-content p {
   margin: 0.5rem 0;
-  line-height: 1.75;
+  line-height: 1.85;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+  font-size: 1rem;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-content ul {
   margin: 0.5rem 0;
   padding-left: 1.5rem;
   list-style: disc;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+  font-size: 1rem;
 }
 
 .markdown-content ol {
   margin: 0.5rem 0;
   padding-left: 1.5rem;
   list-style: decimal;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+  font-size: 1rem;
 }
 
 .markdown-content li {
   margin: 0.25rem 0;
-  line-height: 1.75;
+  line-height: 1.8;
 }
 
 .markdown-content code {
   border-radius: 4px;
-  background: #ecebe6;
+  background: var(--accent-light);
   padding: 0.125rem 0.375rem;
-  font-family: var(--font-geist-mono), monospace;
+  font-family: var(--font-inter), monospace;
   font-size: 0.8125rem;
-  color: #5a5a5a;
+  color: var(--text-secondary);
 }
 
 .markdown-content pre {
   margin: 0.75rem 0;
-  border-radius: 8px;
-  background: #2d2d2d;
+  border-radius: 10px;
+  background: #2a2522;
   padding: 1rem;
   overflow-x: auto;
 }
@@ -116,36 +174,38 @@ select:focus {
 .markdown-content pre code {
   background: transparent;
   padding: 0;
-  color: #fafaf8;
+  color: #f7f3ee;
   font-size: 0.8125rem;
   line-height: 1.6;
+  font-family: var(--font-inter), monospace;
 }
 
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3,
 .markdown-content h4 {
-  font-weight: 600;
-  color: #2d2d2d;
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-weight: 500;
+  color: var(--text-primary);
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
 }
 
-.markdown-content h1 { font-size: 1.25rem; }
-.markdown-content h2 { font-size: 1.125rem; }
-.markdown-content h3 { font-size: 1rem; }
-.markdown-content h4 { font-size: 0.9375rem; }
+.markdown-content h1 { font-size: 1.75rem; line-height: 2rem; }
+.markdown-content h2 { font-size: 1.5rem; line-height: 1.875rem; }
+.markdown-content h3 { font-size: 1.25rem; line-height: 1.625rem; }
+.markdown-content h4 { font-size: 1.0625rem; line-height: 1.5rem; }
 
 .markdown-content strong {
   font-weight: 600;
-  color: #2d2d2d;
+  color: var(--text-primary);
 }
 
 .markdown-content blockquote {
   margin: 0.75rem 0;
-  border-left: 3px solid #d4d4cc;
+  border-left: 3px solid var(--border);
   padding-left: 1rem;
-  color: #6b6b6b;
+  color: var(--text-secondary);
 }
 
 .markdown-content table {
@@ -156,23 +216,22 @@ select:focus {
 }
 
 .markdown-content th {
-  background: #f0f0ec;
-  font-weight: 500;
+  background: rgba(239, 232, 224, 0.75);
+  font-weight: 600;
   text-align: left;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #e3e3dd;
+  border-bottom: 1px solid var(--border);
 }
 
 .markdown-content td {
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #ecece5;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .markdown-content tr:last-child td {
   border-bottom: none;
 }
 
-/* Fade-in animation for messages */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -182,7 +241,6 @@ select:focus {
   animation: fadeIn 0.25s ease-out;
 }
 
-/* Pulse animation for streaming dots */
 @keyframes pulse-dot {
   0%, 80%, 100% { opacity: 0; }
   40% { opacity: 1; }
@@ -191,5 +249,53 @@ select:focus {
 .streaming-dot {
   animation: pulse-dot 1.4s ease-in-out infinite;
 }
+
 .streaming-dot:nth-child(2) { animation-delay: 0.2s; }
 .streaming-dot:nth-child(3) { animation-delay: 0.4s; }
+
+.soft-shadow {
+  box-shadow: var(--shadow-soft);
+}
+
+.page-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 100dvh;
+}
+
+.content-column {
+  width: min(100%, 56rem);
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .content-column {
+    width: min(100%, 48rem);
+  }
+}
+
+@media (max-width: 768px) {
+  .content-column {
+    width: min(100%, 42rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .content-column {
+    width: 100%;
+  }
+}
+
+.surface-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px);
+}
+
+.surface-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}

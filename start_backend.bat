@@ -1,5 +1,4 @@
 @echo off
 echo Starting FinAnalyzer RAG Pro Backend...
-call .venv\Scripts\activate.bat
-cd backend
-python main.py
+set "ROOT=%~dp0"
+"%ROOT%\.venv\Scripts\python.exe" "%ROOT%backend\main.py"
