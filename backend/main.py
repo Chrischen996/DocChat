@@ -1,39 +1,40 @@
-import os
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
 from app.api.routes import router
-from app.core.agnes_client import init_agnes_services
-from app.core.qdrant_client import close_qdrant, init_qdrant
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
-# Lifecycle events
-from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        print("[INIT] Initializing Agnes AI & LlamaIndex...")
+        from app.core.agnes_client import init_agnes_services
+        from app.core.qdrant_client import init_qdrant
+
         init_agnes_services()
-        print("[INIT] Initializing Qdrant vector database...")
-        init_qdrant(url=os.getenv("QDRANT_URL"))
+        init_qdrant()
         yield
     finally:
+        from app.core.qdrant_client import close_qdrant
+
         close_qdrant()
         print("[SHUTDOWN] Server shutting down")
 
+
 app = FastAPI(
     title="DocChat AI Agent API",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# CORS configuration for Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Since it's local dev, allow all. Or ["http://localhost:3000"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,5 +42,6 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api")
 
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False, log_level="info", workers=1)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False, log_level="info")

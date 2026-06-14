@@ -30,11 +30,7 @@ from app.models.schemas import (
     TemplateListResponse,
     UploadResponse,
 )
-from app.services.agent_service import run_agent, stream_agent
 from app.services.parser import FinancialReportParser
-from app.services.chat_service import chat_with_assistant, stream_chat_with_assistant
-from app.services.image_service import generate_image
-from app.services.rag_service import delete_from_index, index_document, query_documents, stream_query_documents
 
 router = APIRouter()
 
@@ -75,6 +71,8 @@ async def run_agent_workflow(request: AgentRequest):
     try:
         history = [message.model_dump() for message in request.history]
         loop = asyncio.get_running_loop()
+        from app.services.agent_service import run_agent
+
         result = await loop.run_in_executor(
             None,
             partial(run_agent, request.input, template_id=request.template_id, history=history),
@@ -108,6 +106,8 @@ async def stream_agent_workflow(request: AgentRequest):
 
     def generate():
         try:
+            from app.services.agent_service import stream_agent
+
             for event in stream_agent(request.input, template_id=request.template_id, history=history):
                 yield _json_line(event)
         except Exception as e:
@@ -157,6 +157,10 @@ async def upload_document(file: UploadFile = File(...)):
     try:
         loop = asyncio.get_running_loop()
 
+        from app.core.qdrant_client import init_qdrant
+        from app.services.rag_service import index_document
+
+        init_qdrant()
         md_path = await loop.run_in_executor(None, partial(parser.parse_file, str(save_path)))
         chunks_count = await loop.run_in_executor(
             None, partial(index_document, md_path, safe_filename)
@@ -191,6 +195,10 @@ async def query_report(request: QueryRequest):
     try:
         loop = asyncio.get_running_loop()
         history = [message.model_dump() for message in request.history]
+        from app.core.qdrant_client import init_qdrant
+        from app.services.rag_service import query_documents
+
+        init_qdrant()
         result = await loop.run_in_executor(
             None,
             partial(query_documents, request.question, history=history),
@@ -225,6 +233,10 @@ async def stream_query_report(request: QueryRequest):
 
     def generate():
         try:
+            from app.core.qdrant_client import init_qdrant
+            from app.services.rag_service import stream_query_documents
+
+            init_qdrant()
             for event in stream_query_documents(request.question, history=history):
                 yield _json_line(event)
         except Exception as e:
@@ -248,6 +260,8 @@ async def chat(request: ChatRequest):
     try:
         loop = asyncio.get_running_loop()
         history = [message.model_dump() for message in request.history]
+        from app.services.chat_service import chat_with_assistant
+
         answer = await loop.run_in_executor(
             None,
             partial(chat_with_assistant, request.message, history=history),
@@ -270,6 +284,8 @@ async def stream_chat(request: ChatRequest):
     def generate():
         try:
             yield _json_line({"type": "status", "message": "正在连接模型..."})
+            from app.services.chat_service import stream_chat_with_assistant
+
             for delta in stream_chat_with_assistant(request.message, history=history):
                 yield _json_line({"type": "delta", "text": delta})
             yield _json_line({"type": "done"})
@@ -313,6 +329,10 @@ async def delete_document(file_name: str):
     5. 全局索引缓存
     """
     # 1. 删除 Qdrant 向量
+    from app.core.qdrant_client import init_qdrant
+    from app.services.rag_service import delete_from_index
+
+    init_qdrant()
     vectors_deleted = delete_document_vectors(file_name)
 
     # 2. 删除元数据
@@ -353,6 +373,8 @@ async def generate_image_endpoint(request: ImageRequest):
         raise HTTPException(status_code=400, detail="描述不能为空")
 
     try:
+        from app.services.image_service import generate_image
+
         result = await generate_image(request.prompt)
         first_image = result["images"][0]
         return ImageResponse(image_data=first_image["b64_json"], format="png")

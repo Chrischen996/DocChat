@@ -1,5 +1,7 @@
 from llama_index.core import Settings
 
+from app.core.agnes_client import init_agnes_services
+
 
 def _format_history(history: list[dict] | None = None) -> str:
     if not history:
@@ -17,19 +19,6 @@ def _format_history(history: list[dict] | None = None) -> str:
     return "\n".join(lines)
 
 
-def chat_with_assistant(message: str, history: list[dict] | None = None) -> str:
-    """
-    通用个人助手聊天，不依赖文档索引。
-    """
-    llm = Settings.llm
-    if llm is None:
-        raise RuntimeError("LLM 尚未初始化")
-
-    prompt = build_assistant_prompt(message, history)
-    response = llm.complete(prompt)
-    return str(response)
-
-
 def build_assistant_prompt(message: str, history: list[dict] | None = None) -> str:
     history_text = _format_history(history)
     prompt = (
@@ -39,24 +28,36 @@ def build_assistant_prompt(message: str, history: list[dict] | None = None) -> s
         "回答使用中文，语气友好，避免编造不确定事实。"
         "请使用清晰的 Markdown 格式：短段落、必要的小标题、项目符号列表；"
         "当用户要求比较或整理数据时，可以使用 Markdown 表格。"
-        "不要为了格式而过度展开。\n\n"
+        "不要为了格式而过度展开。"
     )
 
     if history_text:
-        prompt += f"最近对话:\n{history_text}\n\n"
+        prompt += f"\n\n最近对话:\n{history_text}\n\n"
 
     prompt += f"用户: {message}\n助手:"
     return prompt
 
 
-def stream_chat_with_assistant(message: str, history: list[dict] | None = None):
+def _get_llm():
+    """获取 LLM 实例（init_agnes_services 有 @lru_cache，重复调用无开销）
+    
+    注意：不能写成 Settings.llm or init_agnes_services()，因为 Settings.llm
+    是 property，值为 None 时会尝试解析默认 OpenAI LLM 并抛出缺少 API key 的错误。
     """
-    流式个人助手聊天，不依赖文档索引。
-    """
-    llm = Settings.llm
-    if llm is None:
-        raise RuntimeError("LLM 尚未初始化")
+    if Settings._llm is not None:
+        return Settings.llm
+    return init_agnes_services()
 
+
+def chat_with_assistant(message: str, history: list[dict] | None = None) -> str:
+    llm = _get_llm()
+    prompt = build_assistant_prompt(message, history)
+    response = llm.complete(prompt)
+    return str(response)
+
+
+def stream_chat_with_assistant(message: str, history: list[dict] | None = None):
+    llm = _get_llm()
     prompt = build_assistant_prompt(message, history)
     for chunk in llm.stream_complete(prompt):
         delta = getattr(chunk, "delta", None)

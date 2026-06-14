@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";
@@ -9,19 +9,15 @@ import AnswerDisplay from "@/components/AnswerDisplay";
 import SourceList from "@/components/SourceList";
 import ImageDisplay from "@/components/ImageDisplay";
 import { useUpload } from "@/hooks/useUpload";
-import { useQuery } from "@/hooks/useQuery";
 import {
   GeneratedAsset,
   MessageItem,
   SourceNode,
+  StreamEvent,
   TemplateInfo,
   UploadResponse,
 } from "@/types";
-import {
-  listDocuments,
-  listTemplates,
-  streamAgent,
-} from "@/lib/api";
+import { listDocuments, listTemplates, streamAgent } from "@/lib/api";
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -30,7 +26,7 @@ function fileToBase64(file: File): Promise<string> {
       const result = reader.result as string;
       resolve(result.split(",")[1]);
     };
-    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsDataURL(file);
   });
 }
@@ -76,9 +72,14 @@ export default function Home() {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [activeTemplate, setActiveTemplate] = useState<TemplateInfo | null>(null);
   const [composerText, setComposerText] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [streamingQuestion, setStreamingQuestion] = useState("");
+  const [streamingAnswer, setStreamingAnswer] = useState("");
+  const [streamingSources, setStreamingSources] = useState<SourceNode[]>([]);
+  const [streamingError, setStreamingError] = useState("");
+  const [streamingAsset, setStreamingAsset] = useState<GeneratedAsset | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const upload = useUpload();
-  const query = useQuery();
 
   useEffect(() => {
     listDocuments()
@@ -103,7 +104,7 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, query.streamingAnswer, query.streamingStatus, query.error]);
+  }, [messages.length, streamingAnswer, streamingSources, streamingError, streamingAsset]);
 
   async function handlePhotosSelect(files: File[]) {
     for (const file of files) {
@@ -128,7 +129,7 @@ export default function Home() {
   }
 
   async function handleAgentSend(input: string) {
-    if (!activeTemplate) return;
+    if (!activeTemplate || isSending) return;
 
     const history = messages
       .filter((item): item is Extract<MessageItem, { role: "user" | "assistant" }> =>
@@ -136,69 +137,113 @@ export default function Home() {
       )
       .map((item) => ({ role: item.role, content: item.content }));
 
+    let assistantText = "";
+    let assistantSources: SourceNode[] = [];
+    let latestAsset: GeneratedAsset | null = null;
+
+    setIsSending(true);
+    setStreamingQuestion(input);
+    setStreamingAnswer("");
+    setStreamingSources([]);
+    setStreamingError("");
+    setStreamingAsset(null);
     setMessages((prev) => [...prev, { role: "user", content: input }]);
     setMessages((prev) => [...prev, { role: "assistant", content: "", sources: [] }]);
     setComposerText("");
 
-    try {
-      let assistantText = "";
-      let assistantSources: SourceNode[] = [];
-      let latestAsset: GeneratedAsset | null = null;
+    const updateAssistantMessage = () => {
+      setMessages((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i -= 1) {
+          if (next[i].role === "assistant") {
+            next[i] = {
+              role: "assistant",
+              content: assistantText,
+              sources: assistantSources,
+            };
+            break;
+          }
+        }
 
-      await streamAgent(input, activeTemplate.id, history, (event) => {
-        if (event.type === "status") return;
+        return next;
+      });
+    };
+
+    try {
+      await streamAgent(input, activeTemplate.id, history, (event: StreamEvent) => {
+        if (event.type === "status") {
+          return;
+        }
 
         if (event.type === "sources") {
           assistantSources = event.sources;
+          setStreamingSources(event.sources);
+          updateAssistantMessage();
+          return;
         }
 
         if (event.type === "delta") {
           assistantText += event.text;
+          setStreamingAnswer(assistantText);
+          updateAssistantMessage();
+          return;
         }
 
         if (event.type === "asset") {
           latestAsset = event.asset;
+          setStreamingAsset(event.asset);
+          return;
         }
 
-        setMessages((prev) => {
-          const next = [...prev];
-          for (let i = next.length - 1; i >= 0; i -= 1) {
-            if (next[i].role === "assistant") {
-              next[i] = {
-                role: "assistant",
-                content: assistantText,
-                sources: assistantSources,
-              };
-              break;
-            }
-          }
-          return next;
-        });
+        if (event.type === "error") {
+          throw new Error(event.message || "Agent 鎵ц澶辫触");
+        }
       });
+
+      updateAssistantMessage();
 
       if (latestAsset) {
         const asset = latestAsset;
         setMessages((prev) => [...prev, { role: "asset", asset }]);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Agent 执行失败";
-      setMessages((prev) => [...prev, { role: "assistant", content: `❌ ${msg}` }]);
+      const msg = e instanceof Error ? e.message : "Agent execution failed";
+      setStreamingError(msg);
+      setMessages((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i -= 1) {
+          if (next[i].role === "assistant") {
+            next[i] = { role: "assistant", content: `Error: ${msg}` };
+            return next;
+          }
+        }
+        return [...next, { role: "assistant", content: `Error: ${msg}` }];
+      });
+    } finally {
+      setIsSending(false);
+      setStreamingQuestion("");
     }
   }
 
   function handleNewChat() {
     setMessages([]);
-    query.clearHistory();
+    setComposerText("");
+    setIsSending(false);
+    setStreamingQuestion("");
+    setStreamingAnswer("");
+    setStreamingSources([]);
+    setStreamingError("");
+    setStreamingAsset(null);
   }
 
   const hasMessages = messages.length > 0;
   const streamingMessage =
-    query.status === "loading" && query.pendingQuestion
+    isSending && streamingQuestion
       ? {
-          question: query.pendingQuestion,
-          answer: query.streamingAnswer?.answer ?? null,
-          sources: query.streamingAnswer?.sources ?? [],
-          loadingLabel: query.streamingStatus,
+          question: streamingQuestion,
+          answer: streamingAnswer || null,
+          sources: streamingSources,
+          loadingLabel: streamingError || "姝ｅ湪鐢熸垚鍥炵瓟...",
         }
       : null;
 
@@ -224,7 +269,7 @@ export default function Home() {
           <main className="flex min-h-0 flex-1 flex-col justify-center">
             <div className="flex items-center justify-center px-2 py-1 sm:px-4">
               <CenteredComposer
-                loading={query.status === "loading"}
+                loading={isSending}
                 text={composerText}
                 onTextChange={setComposerText}
                 onSend={(text) => handleAgentSend(text)}
@@ -289,12 +334,9 @@ export default function Home() {
                     </div>
                   )}
 
-                  {query.status === "error" && query.failedQuestion && (
-                    <div className="space-y-4">
-                      <UserMessage question={query.failedQuestion} />
-                      <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {query.error}
-                      </div>
+                  {!isSending && streamingError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {streamingError}
                     </div>
                   )}
                 </div>
@@ -305,7 +347,7 @@ export default function Home() {
 
             <div className="border-t border-[var(--border)] bg-[var(--bg-page)]">
               <QuerySection
-                loading={query.status === "loading"}
+                loading={isSending}
                 onSend={(text) => handleAgentSend(text)}
                 onStop={() => {}}
                 uploadedFiles={uploadedFiles}
@@ -322,3 +364,5 @@ export default function Home() {
     </div>
   );
 }
+
+

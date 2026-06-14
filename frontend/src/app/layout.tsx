@@ -1,16 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Newsreader } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const newsreader = Newsreader({
-  variable: "--font-newsreader",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "DocChat AI",
@@ -26,7 +15,7 @@ export default function RootLayout({
     <html
       lang="zh-CN"
       suppressHydrationWarning
-      className={`${inter.variable} ${newsreader.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body
         className="min-h-dvh overflow-x-hidden flex flex-col"
