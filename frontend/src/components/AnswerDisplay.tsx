@@ -8,6 +8,26 @@ interface AnswerDisplayProps {
   sourceAnchorPrefix?: string;
 }
 
+function LoadingDots({ label }: { label?: string }) {
+  const text = label || "Thinking...";
+  return (
+    <div className="text-sm text-[var(--text-secondary)] flex gap-0.5">
+      {text.split("").map((char, index) => (
+        <span
+          key={index}
+          style={{
+            animation: `thinking-bounce 4s ease-in-out infinite`,
+            animationDelay: `${index * 0.12}s`,
+            display: "inline-block"
+          }}
+        >
+          {char}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function CitationChip({
   label,
   href,
@@ -18,7 +38,7 @@ function CitationChip({
   return (
     <a
       href={href}
-      className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-light)] px-1.5 align-super font-mono text-[11px] font-semibold leading-none text-[var(--text-secondary)] transition-colors hover:border-[var(--text-tertiary)] hover:bg-white"
+      className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-light)] px-1.5 align-super font-mono text-[11px] font-semibold leading-none text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
       title={`View source ${label}`}
     >
       {label.replace("[", "").replace("]", "")}
@@ -91,7 +111,7 @@ function MarkdownTable({
   const [head = [], ...body] = rows;
 
   return (
-    <div className="my-4 w-full overflow-x-auto rounded-lg border border-[var(--border)]">
+    <div className="my-4 w-full overflow-x-auto rounded-2xl border border-[var(--border)]">
       <table className="min-w-full border-collapse text-left text-xs">
         <thead className="bg-[var(--accent-light)] text-[var(--text-primary)]">
           <tr>
@@ -146,8 +166,8 @@ function MarkdownAnswer({
       }
       i += 1;
       blocks.push(
-        <div key={blocks.length} className="my-4 w-full overflow-x-auto rounded-md bg-[#313131]">
-          <pre className="p-3 text-xs leading-5 text-[#faf9f7] min-w-fit">
+        <div key={blocks.length} className="my-4 w-full overflow-x-auto rounded-2xl bg-[#2a2522]">
+          <pre className="min-w-fit p-3 text-xs leading-5 text-[#faf9f7]">
             <code>{codeLines.join("\n")}</code>
           </pre>
         </div>
@@ -183,10 +203,7 @@ function MarkdownAnswer({
           : level === 2
             ? "mt-4 mb-2 text-base font-semibold text-[var(--text-primary)]"
             : "mt-3 mb-1 text-sm font-semibold text-[var(--text-primary)]";
-      const Tag = (level === 1 ? "h2" : level === 2 ? "h3" : "h4") as
-        | "h2"
-        | "h3"
-        | "h4";
+      const Tag = (level === 1 ? "h2" : level === 2 ? "h3" : "h4") as "h2" | "h3" | "h4";
       blocks.push(
         <Tag key={blocks.length} className={className}>
           {renderInline(content, sourceAnchorPrefix)}
@@ -198,10 +215,7 @@ function MarkdownAnswer({
 
     const listItems: string[] = [];
     let listIndex = i;
-    while (
-      listIndex < lines.length &&
-      /^\s*(?:[-*]|\d+\.)\s+/.test(lines[listIndex])
-    ) {
+    while (listIndex < lines.length && /^\s*(?:[-*]|\d+\.)\s+/.test(lines[listIndex])) {
       listItems.push(lines[listIndex].replace(/^\s*(?:[-*]|\d+\.)\s+/, ""));
       listIndex += 1;
     }
@@ -253,10 +267,7 @@ export default function AnswerDisplay({
   if (loading) {
     return (
       <div className="py-2">
-        <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-          {loadingLabel || "正在思考..."}
-        </div>
+        <LoadingDots label={loadingLabel || "Thinking..."} />
       </div>
     );
   }
@@ -264,7 +275,7 @@ export default function AnswerDisplay({
   if (error) {
     return (
       <div className="py-2">
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       </div>

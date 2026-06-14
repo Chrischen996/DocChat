@@ -1,6 +1,6 @@
 from llama_index.core import Settings
 
-from app.core.agnes_client import init_agnes_services
+from app.core.agnes_client import build_agnes_llm, init_agnes_services
 
 
 def _format_history(history: list[dict] | None = None) -> str:
@@ -38,26 +38,36 @@ def build_assistant_prompt(message: str, history: list[dict] | None = None) -> s
     return prompt
 
 
-def _get_llm():
+def _get_llm(model: str | None = None):
     """获取 LLM 实例（init_agnes_services 有 @lru_cache，重复调用无开销）
     
     注意：不能写成 Settings.llm or init_agnes_services()，因为 Settings.llm
     是 property，值为 None 时会尝试解析默认 OpenAI LLM 并抛出缺少 API key 的错误。
     """
+    if model:
+        return build_agnes_llm(model)
     if Settings._llm is not None:
         return Settings.llm
     return init_agnes_services()
 
 
-def chat_with_assistant(message: str, history: list[dict] | None = None) -> str:
-    llm = _get_llm()
+def chat_with_assistant(
+    message: str,
+    history: list[dict] | None = None,
+    model: str | None = None,
+) -> str:
+    llm = _get_llm(model)
     prompt = build_assistant_prompt(message, history)
     response = llm.complete(prompt)
     return str(response)
 
 
-def stream_chat_with_assistant(message: str, history: list[dict] | None = None):
-    llm = _get_llm()
+def stream_chat_with_assistant(
+    message: str,
+    history: list[dict] | None = None,
+    model: str | None = None,
+):
+    llm = _get_llm(model)
     prompt = build_assistant_prompt(message, history)
     for chunk in llm.stream_complete(prompt):
         delta = getattr(chunk, "delta", None)

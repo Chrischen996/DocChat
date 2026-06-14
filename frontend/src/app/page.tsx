@@ -1,23 +1,24 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
-import CenteredComposer from "@/components/CenteredComposer";
 import QuerySection from "@/components/QuerySection";
 import AnswerDisplay from "@/components/AnswerDisplay";
-import SourceList from "@/components/SourceList";
-import ImageDisplay from "@/components/ImageDisplay";
 import { useUpload } from "@/hooks/useUpload";
 import {
+  AssistantTurn,
+  ChatMessage,
+  ChatMode,
+  ConversationTurn,
   GeneratedAsset,
-  MessageItem,
   SourceNode,
   StreamEvent,
   TemplateInfo,
   UploadResponse,
+  UserTurn,
 } from "@/types";
-import { listDocuments, listTemplates, streamAgent } from "@/lib/api";
+import { listTemplates, streamAgent } from "@/lib/api";
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -31,69 +32,45 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function UserMessage({ question }: { question: string }) {
-  return (
-    <div className="message-enter flex justify-end">
-      <div className="max-w-[min(85%,40rem)] break-words rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-sm leading-7 text-[var(--text-primary)] shadow-[0_6px_18px_rgba(44,36,30,0.04)] backdrop-blur-xl">
-        {question}
-      </div>
-    </div>
-  );
+function normalizeSource(source: SourceNode, index: number): SourceNode {
+  return {
+    ...source,
+    source_id: source.source_id ?? `source-${index + 1}`,
+    text: source.text ?? "",
+  };
 }
 
-function AssistantMessage({
-  content,
-  sources,
-  anchorPrefix,
-}: {
-  content: string;
-  sources?: SourceNode[];
-  anchorPrefix: string;
-}) {
+function AssistantMessageView({ turn }: { turn: AssistantTurn }) {
   return (
-    <div className="message-enter space-y-2">
+    <div className="message-enter">
       <AnswerDisplay
-        answer={content}
-        loading={false}
+        answer={turn.content}
+        loading={turn.status === "streaming"}
         error=""
-        sourceAnchorPrefix={anchorPrefix}
+        sourceAnchorPrefix={turn.id}
       />
-      {sources && sources.length > 0 && (
-        <SourceList sources={sources} anchorPrefix={anchorPrefix} />
-      )}
     </div>
   );
 }
 
 export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadResponse[]>([]);
-  const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [activeTemplate, setActiveTemplate] = useState<TemplateInfo | null>(null);
+  const [mode, setMode] = useState<ChatMode>("agent");
+  const [model, setModel] = useState("agnes-default");
   const [composerText, setComposerText] = useState("");
+  const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [streamingQuestion, setStreamingQuestion] = useState("");
-  const [streamingAnswer, setStreamingAnswer] = useState("");
-  const [streamingSources, setStreamingSources] = useState<SourceNode[]>([]);
-  const [streamingError, setStreamingError] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentTurnId, setCurrentTurnId] = useState<string | null>(null);
+  const [streamError, setStreamError] = useState("");
   const [streamingAsset, setStreamingAsset] = useState<GeneratedAsset | null>(null);
+  const hasConversation = turns.length > 0;
   const bottomRef = useRef<HTMLDivElement>(null);
   const upload = useUpload();
 
   useEffect(() => {
-    listDocuments()
-      .then((res) => {
-        const docs: UploadResponse[] = res.documents.map((d) => ({
-          file_name: d.file_name,
-          status: "success",
-          message: "",
-          chunks_indexed: d.chunks_indexed,
-        }));
-        setUploadedFiles(docs);
-      })
-      .catch(() => {});
-
     listTemplates()
       .then((res) => {
         setTemplates(res.templates);
@@ -104,21 +81,21 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, streamingAnswer, streamingSources, streamingError, streamingAsset]);
+  }, [turns, streamError, streamingAsset]);
 
-  async function handlePhotosSelect(files: File[]) {
-    for (const file of files) {
-      const base64 = await fileToBase64(file);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "image",
-          prompt: file.name,
-          image_data: base64,
-          format: file.type.split("/")[1] || "png",
-        },
-      ]);
+  const lastAssistantTurn = useMemo(
+    () => [...turns].reverse().find((turn): turn is AssistantTurn => turn.role === "assistant"),
+    [turns]
+  );
+
+  function buildHistory(untilTurnId?: string | null) {
+    const items: ChatMessage[] = [];
+    for (const turn of turns) {
+      if (untilTurnId && turn.id === untilTurnId) break;
+      if (turn.role === "user") items.push({ role: "user", content: turn.content });
+      if (turn.role === "assistant") items.push({ role: "assistant", content: turn.content });
     }
+    return items;
   }
 
   async function handleFilesSelect(files: File[]) {
@@ -128,124 +105,176 @@ export default function Home() {
     }
   }
 
-  async function handleAgentSend(input: string) {
-    if (!activeTemplate || isSending) return;
+  async function handlePhotosSelect(files: File[]) {
+    for (const file of files) {
+      await fileToBase64(file);
+    }
+  }
 
-    const history = messages
-      .filter((item): item is Extract<MessageItem, { role: "user" | "assistant" }> =>
-        item.role === "user" || item.role === "assistant"
-      )
-      .map((item) => ({ role: item.role, content: item.content }));
+  function updateStreamingAssistant(
+    turnId: string,
+    updater: (turn: AssistantTurn) => AssistantTurn
+  ) {
+    setTurns((prev) =>
+      prev.map((turn) => {
+        if (turn.role !== "assistant" || turn.id !== turnId) return turn;
+        return updater(turn);
+      })
+    );
+  }
 
-    let assistantText = "";
-    let assistantSources: SourceNode[] = [];
-    let latestAsset: GeneratedAsset | null = null;
+  async function handleSend(input: string, branchFromTurnId?: string | null) {
+    if (isSending) return;
+    const normalized = input.trim();
+    if (!normalized) return;
+
+    const userTurnId = crypto.randomUUID();
+    const assistantTurnId = crypto.randomUUID();
+    const history = buildHistory(branchFromTurnId ?? currentTurnId);
 
     setIsSending(true);
-    setStreamingQuestion(input);
-    setStreamingAnswer("");
-    setStreamingSources([]);
-    setStreamingError("");
+    setStreamError("");
     setStreamingAsset(null);
-    setMessages((prev) => [...prev, { role: "user", content: input }]);
-    setMessages((prev) => [...prev, { role: "assistant", content: "", sources: [] }]);
-    setComposerText("");
+    setCurrentTurnId(assistantTurnId);
 
-    const updateAssistantMessage = () => {
-      setMessages((prev) => {
-        const next = [...prev];
-        for (let i = next.length - 1; i >= 0; i -= 1) {
-          if (next[i].role === "assistant") {
-            next[i] = {
-              role: "assistant",
-              content: assistantText,
-              sources: assistantSources,
-            };
-            break;
-          }
-        }
-
-        return next;
-      });
+    const userTurn: UserTurn = {
+      id: userTurnId,
+      role: "user",
+      content: normalized,
+      mode,
+      parentId: branchFromTurnId ?? currentTurnId,
     };
 
+    const assistantTurn: AssistantTurn = {
+      id: assistantTurnId,
+      role: "assistant",
+      content: "",
+      sources: [],
+      steps: [],
+      toolCalls: [],
+      mode,
+      parentId: userTurnId,
+      status: "streaming",
+    };
+
+    setTurns((prev) => [...prev, userTurn, assistantTurn]);
+    setComposerText("");
+
+    let buffer = "";
+    let sources: SourceNode[] = [];
+    let steps: { id: string; kind: "status" | "thinking"; text: string; ts: number }[] = [];
+    let toolCalls: {
+      id: string;
+      tool: string;
+      input?: unknown;
+      output?: unknown;
+      status: "start" | "result";
+      ts: number;
+    }[] = [];
+
     try {
-      await streamAgent(input, activeTemplate.id, history, (event: StreamEvent) => {
-        if (event.type === "status") {
-          return;
-        }
+      await streamAgent(
+        normalized,
+        mode,
+        activeTemplate?.id ?? null,
+        model,
+        history,
+        (event: StreamEvent) => {
+          if (event.type === "status") {
+            steps = [...steps, { id: crypto.randomUUID(), kind: "status", text: event.message, ts: Date.now() }];
+            updateStreamingAssistant(assistantTurnId, (turn) => ({
+              ...turn,
+              steps: [...steps],
+              status: "streaming",
+            }));
+            return;
+          }
 
-        if (event.type === "sources") {
-          assistantSources = event.sources;
-          setStreamingSources(event.sources);
-          updateAssistantMessage();
-          return;
-        }
+          if (event.type === "thinking") {
+            steps = [...steps, { id: crypto.randomUUID(), kind: "thinking", text: event.text, ts: Date.now() }];
+            updateStreamingAssistant(assistantTurnId, (turn) => ({ ...turn, steps: [...steps] }));
+            return;
+          }
 
-        if (event.type === "delta") {
-          assistantText += event.text;
-          setStreamingAnswer(assistantText);
-          updateAssistantMessage();
-          return;
-        }
+          if (event.type === "tool_start") {
+            toolCalls = [
+              ...toolCalls,
+              {
+                id: crypto.randomUUID(),
+                tool: event.tool,
+                input: event.input,
+                status: "start",
+                ts: Date.now(),
+              },
+            ];
+            updateStreamingAssistant(assistantTurnId, (turn) => ({ ...turn, toolCalls: [...toolCalls] }));
+            return;
+          }
 
-        if (event.type === "asset") {
-          latestAsset = event.asset;
-          setStreamingAsset(event.asset);
-          return;
-        }
+          if (event.type === "tool_result") {
+            toolCalls = toolCalls.map((item) =>
+              item.tool === event.tool && item.status === "start"
+                ? { ...item, output: event.output, status: "result" as const }
+                : item
+            );
+            updateStreamingAssistant(assistantTurnId, (turn) => ({ ...turn, toolCalls: [...toolCalls] }));
+            return;
+          }
 
-        if (event.type === "error") {
-          throw new Error(event.message || "Agent 鎵ц澶辫触");
-        }
-      });
+          if (event.type === "sources") {
+            sources = event.sources.map(normalizeSource);
+            updateStreamingAssistant(assistantTurnId, (turn) => ({ ...turn, sources: [...sources] }));
+            return;
+          }
 
-      updateAssistantMessage();
+          if (event.type === "delta") {
+            buffer += event.text;
+            updateStreamingAssistant(assistantTurnId, (turn) => ({ ...turn, content: buffer }));
+            return;
+          }
 
-      if (latestAsset) {
-        const asset = latestAsset;
-        setMessages((prev) => [...prev, { role: "asset", asset }]);
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Agent execution failed";
-      setStreamingError(msg);
-      setMessages((prev) => {
-        const next = [...prev];
-        for (let i = next.length - 1; i >= 0; i -= 1) {
-          if (next[i].role === "assistant") {
-            next[i] = { role: "assistant", content: `Error: ${msg}` };
-            return next;
+          if (event.type === "asset") {
+            setStreamingAsset(event.asset);
+            return;
+          }
+
+          if (event.type === "error") {
+            throw new Error(event.message || "Agent execution failed");
           }
         }
-        return [...next, { role: "assistant", content: `Error: ${msg}` }];
-      });
+      );
+
+      updateStreamingAssistant(assistantTurnId, (turn) => ({
+        ...turn,
+        content: buffer,
+        sources,
+        steps,
+        toolCalls,
+        status: "done",
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Agent execution failed";
+      setStreamError(message);
+      updateStreamingAssistant(assistantTurnId, (turn) => ({
+        ...turn,
+        content: `Error: ${message}`,
+        status: "error",
+      }));
     } finally {
       setIsSending(false);
-      setStreamingQuestion("");
     }
   }
 
   function handleNewChat() {
-    setMessages([]);
+    setTurns([]);
     setComposerText("");
     setIsSending(false);
-    setStreamingQuestion("");
-    setStreamingAnswer("");
-    setStreamingSources([]);
-    setStreamingError("");
+    setCurrentTurnId(null);
+    setStreamError("");
     setStreamingAsset(null);
   }
 
-  const hasMessages = messages.length > 0;
-  const streamingMessage =
-    isSending && streamingQuestion
-      ? {
-          question: streamingQuestion,
-          answer: streamingAnswer || null,
-          sources: streamingSources,
-          loadingLabel: streamingError || "姝ｅ湪鐢熸垚鍥炵瓟...",
-        }
-      : null;
+  const assistantTurn = lastAssistantTurn;
 
   return (
     <div className="page-shell flex bg-[var(--bg-page)] text-[var(--text-primary)]">
@@ -255,114 +284,110 @@ export default function Home() {
         isOpen={sidebarOpen}
         templates={templates}
         activeTemplateId={activeTemplate?.id ?? null}
-        onSelectTemplate={(template) => setActiveTemplate(template)}
+        onSelectTemplate={(template) => {
+          setActiveTemplate(template);
+          if (template.workflow_id === "image_generation") setMode("agent");
+          else setMode("rag");
+        }}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header
-          onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
-          onNewChat={handleNewChat}
-          sidebarOpen={sidebarOpen}
-        />
+        <Header onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
 
-        {!hasMessages && !streamingMessage ? (
-          <main className="flex min-h-0 flex-1 flex-col justify-center">
-            <div className="flex items-center justify-center px-2 py-1 sm:px-4">
-              <CenteredComposer
-                loading={isSending}
-                text={composerText}
-                onTextChange={setComposerText}
-                onSend={(text) => handleAgentSend(text)}
-                onStop={() => {}}
-                uploadedFiles={uploadedFiles}
-                uploadStatus={upload.status}
-                onFilesSelect={handleFilesSelect}
-                onPhotosSelect={handlePhotosSelect}
-              />
-            </div>
-          </main>
-        ) : (
-          <main className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto flex w-full max-w-[min(100%,56rem)] flex-col px-2 py-4 sm:px-4 md:px-6 lg:px-8">
-                <div className="space-y-8 pb-6">
-                  {messages.map((item, index) => (
-                    <div key={`msg-${index}`}>
-                      {item.role === "user" && <UserMessage question={item.content} />}
-                      {item.role === "assistant" && (
-                        <AssistantMessage
-                          content={item.content}
-                          sources={item.sources}
-                          anchorPrefix={`msg-${index}`}
-                        />
-                      )}
-                      {item.role === "image" && (
-                        <ImageDisplay
-                          imageData={item.image_data}
-                          format={item.format}
-                          prompt={item.prompt}
-                        />
-                      )}
-                      {item.role === "asset" && item.asset.image_data && (
-                        <ImageDisplay
-                          imageData={item.asset.image_data}
-                          format={item.asset.format || "png"}
-                          prompt={item.asset.title}
-                        />
-                      )}
-                    </div>
-                  ))}
+        <main className="flex min-h-0 flex-1 flex-col">
+          {!hasConversation ? (
+            <section className="min-h-0 flex-1 overflow-y-auto">
+              <div className="mx-auto flex w-full max-w-4xl flex-col px-3 py-4 sm:px-4 lg:px-6">
+                {activeTemplate && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
+                      Template: {activeTemplate.name}
+                    </span>
+                  </div>
+                )}
 
-                  {streamingMessage && (
-                    <div className="space-y-8">
-                      <UserMessage question={streamingMessage.question} />
-                      {streamingMessage.answer ? (
-                        <AssistantMessage
-                          content={streamingMessage.answer}
-                          sources={streamingMessage.sources}
-                          anchorPrefix="streaming"
-                        />
-                      ) : (
-                        <div className="message-enter">
-                          <div className="flex items-center gap-1 py-1 text-[var(--text-tertiary)]">
-                            <span className="streaming-dot inline-block h-2 w-2 rounded-full bg-current" />
-                            <span className="streaming-dot inline-block h-2 w-2 rounded-full bg-current" />
-                            <span className="streaming-dot inline-block h-2 w-2 rounded-full bg-current" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {!isSending && streamingError && (
-                    <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {streamingError}
-                    </div>
-                  )}
+                <div className="flex min-h-[60dvh] items-center justify-center">
+                  <div className="w-full">
+                    <QuerySection
+                      loading={isSending}
+                      onSend={(text) => handleSend(text)}
+                      onStop={() => {}}
+                      uploadedFiles={uploadedFiles}
+                      uploadStatus={upload.status}
+                      onFilesSelect={handleFilesSelect}
+                      onPhotosSelect={handlePhotosSelect}
+                      text={composerText}
+                      onTextChange={setComposerText}
+                      mode={mode}
+                      onModeChange={setMode}
+                      model={model}
+                      onModelChange={setModel}
+                    />
+                  </div>
                 </div>
 
                 <div ref={bottomRef} />
               </div>
-            </div>
+            </section>
+          ) : (
+            <>
+              <section className="min-h-0 flex-1 overflow-y-auto">
+                <div className="mx-auto flex w-full max-w-4xl flex-col px-3 py-4 sm:px-4 lg:px-6 min-h-full">
+                  {activeTemplate && (
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
+                        Template: {activeTemplate.name}
+                      </span>
+                    </div>
+                  )}
 
-            <div className="border-t border-[var(--border)] bg-[var(--bg-page)]">
-              <QuerySection
-                loading={isSending}
-                onSend={(text) => handleAgentSend(text)}
-                onStop={() => {}}
-                uploadedFiles={uploadedFiles}
-                uploadStatus={upload.status}
-                onFilesSelect={handleFilesSelect}
-                onPhotosSelect={handlePhotosSelect}
-                text={composerText}
-                onTextChange={setComposerText}
-              />
-            </div>
-          </main>
-        )}
+                  <div className="space-y-5 flex-1">
+                    {turns.map((turn) =>
+                      turn.role === "user" ? (
+                      <div key={turn.id} className="flex justify-end">
+                        <div className="max-w-[min(85%,48rem)] rounded-2xl bg-[var(--bg-surface-strong)] px-4 py-3 text-sm leading-7 shadow-[0_6px_18px_rgba(44,36,30,0.04)]">
+                          {turn.content}
+                        </div>
+                      </div>
+                      ) : (
+                        <AssistantMessageView key={turn.id} turn={turn} />
+                      )
+                    )}
+
+                    {streamError && (
+                      <div className="rounded-2xl border border-red-900/30 bg-red-950/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                        {streamError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div ref={bottomRef} />
+                </div>
+              </section>
+
+              <div className="mx-auto w-full max-w-4xl px-3 sm:px-4 lg:px-6 pb-2">
+                <div className="rounded-[28px]">
+                  <QuerySection
+                    loading={isSending}
+                    onSend={(text) => handleSend(text)}
+                    onStop={() => {}}
+                    uploadedFiles={uploadedFiles}
+                    uploadStatus={upload.status}
+                    onFilesSelect={handleFilesSelect}
+                    onPhotosSelect={handlePhotosSelect}
+                    text={composerText}
+                    onTextChange={setComposerText}
+                    mode={mode}
+                    onModeChange={setMode}
+                    model={model}
+                    onModelChange={setModel}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </main>
       </div>
     </div>
   );
 }
-
-

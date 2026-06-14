@@ -21,30 +21,21 @@ export default function Sidebar({
 }: SidebarProps) {
   return (
     <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/18 backdrop-blur-[1px] lg:hidden"
-          onClick={onToggle}
-        />
-      )}
+      {isOpen && <div className="fixed inset-0 z-30 bg-black/20 backdrop-blur-[1px] lg:hidden" onClick={onToggle} />}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[280px] max-w-[85vw] flex-col border-r border-[var(--border)] bg-[color-mix(in srgb, var(--bg-sidebar) 86%, transparent)] text-sm shadow-[0_18px_40px_rgba(46,41,36,0.12)] transition-transform duration-200 backdrop-blur-2xl lg:static lg:z-auto lg:translate-x-0 lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[300px] max-w-[86vw] flex-col border-r border-[var(--border)] bg-[var(--bg-page)] text-sm shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-transform duration-200 backdrop-blur-2xl lg:static lg:z-auto lg:translate-x-0 lg:shadow-none ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="shrink-0 px-5 pt-5">
           <div className="flex items-center gap-2">
-            <div className="surface-panel flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-[var(--text-primary)]">
+            <div className="surface-panel flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold text-[var(--text-primary)]">
               D
             </div>
             <div>
-              <div className="font-[var(--font-newsreader)] text-lg font-medium tracking-tight text-[var(--text-primary)]">
-                DocChat
-              </div>
-              <div className="text-xs text-[var(--text-secondary)]">
-                Document-first assistant
-              </div>
+              <div className="font-semibold tracking-tight text-[var(--text-primary)]">DocChat</div>
+              <div className="text-xs text-[var(--text-secondary)]">Agentic RAG workspace</div>
             </div>
           </div>
         </div>
@@ -76,13 +67,13 @@ export default function Sidebar({
                       onClick={() => onSelectTemplate(template)}
                       className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition-colors ${
                         active
-                          ? "border-[var(--border)] bg-[var(--bg-surface-strong)] shadow-[0_10px_28px_rgba(46,41,36,0.06)]"
-                          : "border-transparent bg-transparent hover:bg-[var(--bg-sidebar-hover)]"
+                          ? "border-[var(--accent)] bg-[var(--bg-surface)] shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+                          : "border-transparent bg-transparent hover:bg-[var(--bg-surface)]"
                       }`}
                     >
                       <span
                         className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: active ? "var(--accent)" : "#d7cfc4" }}
+                        style={{ backgroundColor: active ? "var(--accent)" : "var(--text-tertiary)" }}
                       />
                       <span className="min-w-0">
                         <span className="block truncate text-sm text-[var(--text-primary)]">
@@ -97,12 +88,15 @@ export default function Sidebar({
                 })}
               </div>
             </section>
-          </div>
-        </div>
 
-        <div className="shrink-0 border-t border-[var(--border)] px-5 py-4">
-          <div className="surface-panel rounded-2xl px-4 py-3 text-xs text-[var(--text-secondary)]">
-            Tip: upload a file or start a new conversation from the center panel.
+            <section className="space-y-3">
+              <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+                Modes
+              </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                Use the composer controls to switch mode and model.
+              </div>
+            </section>
           </div>
         </div>
       </aside>

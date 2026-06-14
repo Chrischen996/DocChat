@@ -4,14 +4,14 @@ from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
-    """一条聊天上下文消息"""
+    """A single chat message."""
 
     role: str = Field(pattern="^(user|assistant)$")
     content: str
 
 
 class QueryRequest(BaseModel):
-    """用户查询请求"""
+    """Document question request."""
 
     question: str
     collection_name: Optional[str] = "financial_reports"
@@ -19,35 +19,40 @@ class QueryRequest(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """个人助手聊天请求"""
+    """General chat request."""
 
     message: str
     history: List[ChatMessage] = []
 
 
 class SourceNode(BaseModel):
-    """引用来源信息"""
+    """Source citation payload."""
 
+    source_id: Optional[str] = None
     text: str
     score: Optional[float] = None
     file_name: Optional[str] = None
+    document_title: Optional[str] = None
+    chunk_index: Optional[int] = None
+    page_number: Optional[int] = None
+    file_path: Optional[str] = None
 
 
 class QueryResponse(BaseModel):
-    """查询响应，包含回答和引用来源"""
+    """Query response with citations."""
 
     answer: str
     sources: List[SourceNode]
 
 
 class ChatResponse(BaseModel):
-    """个人助手聊天响应"""
+    """General chat response."""
 
     answer: str
 
 
 class UploadResponse(BaseModel):
-    """文件上传响应"""
+    """File upload response."""
 
     file_name: str
     status: str
@@ -56,7 +61,7 @@ class UploadResponse(BaseModel):
 
 
 class DocumentInfo(BaseModel):
-    """文档元数据"""
+    """Stored document metadata."""
 
     file_name: str
     upload_time: str
@@ -64,34 +69,34 @@ class DocumentInfo(BaseModel):
 
 
 class DocumentListResponse(BaseModel):
-    """文档列表响应"""
+    """Document list response."""
 
     documents: list[DocumentInfo]
     total: int
 
 
 class ImageRequest(BaseModel):
-    """图片生成请求"""
+    """Image generation request."""
 
     prompt: str
 
 
 class ImageResponse(BaseModel):
-    """图片生成响应"""
+    """Image generation response."""
 
     image_data: str
     format: str = "png"
 
 
 class DeleteResponse(BaseModel):
-    """删除文档响应"""
+    """Document deletion response."""
 
     message: str
     vectors_deleted: int
 
 
 class TemplateInfo(BaseModel):
-    """模板配置"""
+    """Template configuration."""
 
     id: str
     name: str
@@ -101,14 +106,14 @@ class TemplateInfo(BaseModel):
 
 
 class TemplateListResponse(BaseModel):
-    """模板列表响应"""
+    """Template list response."""
 
     templates: list[TemplateInfo]
     total: int
 
 
 class GeneratedAsset(BaseModel):
-    """生成资产"""
+    """Generated asset payload."""
 
     id: str
     asset_type: str
@@ -121,25 +126,45 @@ class GeneratedAsset(BaseModel):
 
 
 class AssetListResponse(BaseModel):
-    """生成资产列表响应"""
+    """Generated asset list response."""
 
     assets: list[GeneratedAsset]
     total: int
 
 
 class AgentRequest(BaseModel):
-    """Agent 执行请求"""
+    """Agent execution request."""
 
     input: str
     template_id: str | None = None
+    mode: str = "agent"
+    model: str | None = None
     history: list[ChatMessage] = []
 
 
 class AgentResponse(BaseModel):
-    """Agent 执行响应"""
+    """Agent execution response."""
 
     answer: str
     sources: list[SourceNode]
     asset: GeneratedAsset | None = None
     mode: str = "assistant"
     total_ms: int = 0
+
+
+class FeedbackRequest(BaseModel):
+    """User feedback payload."""
+
+    message_id: str
+    rating: int
+    tag: str | None = None
+    comment: str | None = None
+    mode: str | None = None
+    source_ids: list[str] = []
+
+
+class FeedbackResponse(BaseModel):
+    """Feedback save response."""
+
+    status: str = "ok"
+    total: int = 0

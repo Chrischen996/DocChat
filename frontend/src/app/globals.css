@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
+/* Light Theme (Default) */
 :root {
   color-scheme: light;
-  --bg-page: #f5f1eb;
-  --bg-page-alt: #fbf8f3;
-  --bg-surface: rgba(255, 255, 255, 0.82);
-  --bg-surface-strong: #ffffff;
-  --bg-sidebar: rgba(245, 240, 233, 0.9);
-  --bg-sidebar-hover: rgba(236, 228, 217, 0.95);
-  --bg-card: rgba(255, 255, 255, 0.88);
-  --text-primary: #191513;
-  --text-secondary: #5a4d43;
-  --text-tertiary: #8a7c70;
-  --border: rgba(220, 208, 197, 0.95);
-  --border-light: rgba(232, 224, 214, 0.95);
-  --accent: #d96f4a;
-  --accent-hover: #c85f3d;
-  --accent-light: rgba(217, 111, 74, 0.12);
-  --accent-soft: rgba(217, 111, 74, 0.18);
-  --divider: rgba(228, 218, 208, 0.95);
-  --shadow-soft: 0 18px 40px rgba(44, 36, 30, 0.08);
-  --shadow-card: 0 12px 30px rgba(44, 36, 30, 0.07);
+  --bg-page: #ffffff;
+  --bg-page-alt: #fafafa;
+  --bg-surface: rgba(245, 245, 245, 0.9);
+  --bg-surface-strong: #ececec;
+  --bg-sidebar: rgba(250, 250, 250, 0.95);
+  --bg-sidebar-hover: rgba(240, 240, 240, 0.95);
+  --bg-card: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary: #9b9b9b;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-light: rgba(0, 0, 0, 0.04);
+  --accent: #2d2d2d;
+  --accent-hover: #1a1a1a;
+  --accent-light: rgba(0, 0, 0, 0.05);
+  --accent-soft: rgba(0, 0, 0, 0.08);
+  --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.05);
+}
+
+/* Dark Theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg-page: #0f0f0f;
+    --bg-page-alt: #1a1a1a;
+    --bg-surface: rgba(31, 31, 31, 0.9);
+    --bg-surface-strong: #2a2a2a;
+    --bg-sidebar: rgba(20, 20, 20, 0.95);
+    --bg-sidebar-hover: rgba(40, 40, 40, 0.95);
+    --bg-card: #1f1f1f;
+    --text-primary: #e5e5e5;
+    --text-secondary: #a0a0a0;
+    --text-tertiary: #6b6b6b;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-light: rgba(255, 255, 255, 0.05);
+    --accent: #8b8b8b;
+    --accent-hover: #a0a0a0;
+    --accent-light: rgba(255, 255, 255, 0.08);
+    --accent-soft: rgba(255, 255, 255, 0.12);
+    --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.3);
+    --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.25);
+  }
 }
 
 @theme inline {
@@ -47,45 +72,10 @@ html {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 30%),
-    radial-gradient(circle at top right, rgba(217, 111, 74, 0.06), transparent 24%),
-    linear-gradient(180deg, var(--bg-page-alt) 0%, var(--bg-page) 100%);
+  background: var(--bg-page);
   color: var(--text-primary);
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
   overflow-x: hidden;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg-page: #161412;
-    --bg-page-alt: #1c1917;
-    --bg-surface: rgba(34, 29, 26, 0.84);
-    --bg-surface-strong: #231f1c;
-    --bg-sidebar: rgba(25, 22, 20, 0.94);
-    --bg-sidebar-hover: rgba(42, 36, 32, 0.96);
-    --bg-card: rgba(33, 29, 26, 0.9);
-    --text-primary: #f5efe8;
-    --text-secondary: #d0c4b7;
-    --text-tertiary: #a49688;
-    --border: rgba(77, 67, 60, 0.9);
-    --border-light: rgba(61, 53, 47, 0.92);
-    --accent: #ee8b5f;
-    --accent-hover: #e47a49;
-    --accent-light: rgba(238, 139, 95, 0.16);
-    --accent-soft: rgba(238, 139, 95, 0.18);
-    --divider: rgba(62, 55, 49, 0.95);
-    --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.34);
-    --shadow-card: 0 12px 28px rgba(0, 0, 0, 0.28);
-  }
-
-  body {
-    background:
-      radial-gradient(circle at top left, rgba(255, 255, 255, 0.03), transparent 28%),
-      radial-gradient(circle at top right, rgba(238, 139, 95, 0.08), transparent 22%),
-      linear-gradient(180deg, #1b1816 0%, #151312 100%);
-  }
 }
 
 ::selection {
@@ -94,7 +84,7 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -102,12 +92,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(183, 167, 154, 0.75);
-  border-radius: 2px;
+  background: var(--border);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(155, 138, 123, 0.9);
+  background: var(--text-tertiary);
 }
 
 input:focus,
@@ -121,7 +111,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  box-shadow: none;
 }
 
 .markdown-content p {
@@ -171,6 +161,12 @@ select:focus-visible {
   overflow-x: auto;
 }
 
+@media (prefers-color-scheme: dark) {
+  .markdown-content pre {
+    background: #1a1a1a;
+  }
+}
+
 .markdown-content pre code {
   background: transparent;
   padding: 0;
@@ -184,8 +180,7 @@ select:focus-visible {
 .markdown-content h2,
 .markdown-content h3,
 .markdown-content h4 {
-  font-family: var(--font-newsreader), Georgia, serif;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
@@ -223,6 +218,12 @@ select:focus-visible {
   border-bottom: 1px solid var(--border);
 }
 
+@media (prefers-color-scheme: dark) {
+  .markdown-content th {
+    background: rgba(42, 42, 42, 0.75);
+  }
+}
+
 .markdown-content td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border-light);
@@ -237,52 +238,24 @@ select:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes thinking-bounce {
+  0%, 2.5%, 97.5%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
 .message-enter {
   animation: fadeIn 0.25s ease-out;
 }
 
-@keyframes pulse-dot {
-  0%, 80%, 100% { opacity: 0; }
-  40% { opacity: 1; }
-}
-
-.streaming-dot {
-  animation: pulse-dot 1.4s ease-in-out infinite;
-}
-
-.streaming-dot:nth-child(2) { animation-delay: 0.2s; }
-.streaming-dot:nth-child(3) { animation-delay: 0.4s; }
-
-.soft-shadow {
-  box-shadow: var(--shadow-soft);
-}
-
-.page-shell {
-  width: 100%;
-  min-width: 0;
-  min-height: 100dvh;
-}
-
-.content-column {
-  width: min(100%, 56rem);
-  min-width: 0;
-}
-
-@media (max-width: 1024px) {
-  .content-column {
-    width: min(100%, 48rem);
-  }
-}
-
-@media (max-width: 768px) {
-  .content-column {
-    width: min(100%, 42rem);
-  }
-}
-
-@media (max-width: 640px) {
-  .content-column {
-    width: 100%;
+@layer utilities {
+  .thinking-bounce {
+    animation: thinking-bounce 1.2s ease-in-out infinite !important;
   }
 }
 

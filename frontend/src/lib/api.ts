@@ -2,8 +2,11 @@ import {
   AgentRequest,
   AgentResponse,
   ChatMessage,
+  ChatMode,
   ChatResponse,
   DocumentListResponse,
+  FeedbackRequest,
+  FeedbackResponse,
   QueryResponse,
   StreamEvent,
   TemplateListResponse,
@@ -124,21 +127,39 @@ export async function streamChatWithAssistant(
   await streamNdjson(`${API_BASE}/api/chat/stream`, { message, history }, onEvent);
 }
 
-export async function streamQueryDocuments(
-  question: string,
+export async function streamAgent(
+  input: string,
+  mode: ChatMode,
+  templateId: string | null,
+  model: string | null,
   history: ChatMessage[],
-  onEvent: (event: StreamEvent) => void,
-  collectionName?: string
+  onEvent: (event: StreamEvent) => void
 ) {
   await streamNdjson(
-    `${API_BASE}/api/query/stream`,
-    {
-      question,
-      collection_name: collectionName,
-      history,
-    },
+    `${API_BASE}/api/agent/stream`,
+    { input, mode, model, template_id: templateId, history } satisfies AgentRequest,
     onEvent
   );
+}
+
+export async function runAgent(
+  input: string,
+  mode: ChatMode,
+  templateId?: string | null,
+  model?: string | null,
+  history: ChatMessage[] = []
+): Promise<AgentResponse> {
+  const res = await fetch(`${API_BASE}/api/agent/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input, mode, model, template_id: templateId, history } satisfies AgentRequest),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res, "Agent run failed"));
+  }
+
+  return res.json();
 }
 
 export async function healthCheck(): Promise<{ status: string }> {
@@ -182,37 +203,6 @@ export async function listTemplates(): Promise<TemplateListResponse> {
   return res.json();
 }
 
-export async function runAgent(
-  input: string,
-  templateId?: string | null,
-  history: ChatMessage[] = []
-): Promise<AgentResponse> {
-  const res = await fetch(`${API_BASE}/api/agent/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, template_id: templateId, history } satisfies AgentRequest),
-  });
-
-  if (!res.ok) {
-    throw new Error(await parseError(res, "Agent run failed"));
-  }
-
-  return res.json();
-}
-
-export async function streamAgent(
-  input: string,
-  templateId: string | null,
-  history: ChatMessage[],
-  onEvent: (event: StreamEvent) => void
-) {
-  await streamNdjson(
-    `${API_BASE}/api/agent/stream`,
-    { input, template_id: templateId, history } satisfies AgentRequest,
-    onEvent
-  );
-}
-
 export async function deleteDocument(fileName: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/documents/${encodeURIComponent(fileName)}`, {
     method: "DELETE",
@@ -221,4 +211,18 @@ export async function deleteDocument(fileName: string): Promise<void> {
   if (!res.ok) {
     throw new Error(await parseError(res, "Delete failed"));
   }
+}
+
+export async function sendFeedback(payload: FeedbackRequest): Promise<FeedbackResponse> {
+  const res = await fetch(`${API_BASE}/api/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res, "Feedback failed"));
+  }
+
+  return res.json();
 }

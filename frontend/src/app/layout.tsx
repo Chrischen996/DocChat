@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DocChat AI",
-  description: "A focused chat workspace for documents, research, and writing.",
+  title: "DocChat Agent",
+  description: "Agentic RAG workspace with traces, citations, and feedback.",
 };
 
 export default function RootLayout({
@@ -12,13 +12,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="zh-CN"
-      suppressHydrationWarning
-      className="h-full antialiased"
-    >
+    <html lang="zh-CN" suppressHydrationWarning className="h-full antialiased">
       <body
-        className="min-h-dvh overflow-x-hidden flex flex-col"
+        className="flex min-h-dvh flex-col overflow-x-hidden"
         suppressHydrationWarning
       >
         {children}

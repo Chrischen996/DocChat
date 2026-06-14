@@ -1,147 +1,77 @@
 "use client";
 
 import { useState } from "react";
-import { streamChatWithAssistant, streamQueryDocuments } from "@/lib/api";
-import { AssistantMode, ChatMessage, QueryResponse } from "@/types";
+import { streamAgent } from "@/lib/api";
+import { ChatMode, ChatMessage, StreamEvent } from "@/types";
 
 type QueryStatus = "idle" | "loading" | "success" | "error";
 
 export interface QARecord {
   question: string;
-  response: QueryResponse;
-  mode: AssistantMode;
-}
-
-function buildRecentHistory(
-  history: QARecord[],
-  mode: AssistantMode
-): ChatMessage[] {
-  const chatHistory: ChatMessage[] = history.flatMap((item) => [
-    { role: "user", content: item.question },
-    {
-      role: "assistant",
-      content:
-        mode === "document"
-          ? item.response.answer.slice(0, 500)
-          : item.response.answer,
-    },
-  ]);
-
-  return mode === "document" ? chatHistory.slice(-4) : chatHistory.slice(-12);
+  answer: string;
+  mode: ChatMode;
 }
 
 export function useQuery() {
   const [status, setStatus] = useState<QueryStatus>("idle");
-  const [data, setData] = useState<QueryResponse | null>(null);
-  const [error, setError] = useState<string>("");
   const [history, setHistory] = useState<QARecord[]>([]);
-  const [pendingQuestion, setPendingQuestion] = useState<string>("");
-  const [failedQuestion, setFailedQuestion] = useState<string>("");
-  const [streamingAnswer, setStreamingAnswer] = useState<QueryResponse | null>(
-    null
-  );
+  const [streamingAnswer, setStreamingAnswer] = useState<string>("");
   const [streamingStatus, setStreamingStatus] = useState<string>("");
 
-  async function ask(question: string, mode: AssistantMode = "assistant") {
+  async function ask(question: string, mode: ChatMode = "agent") {
     setStatus("loading");
-    setError("");
-    setData(null);
-    setFailedQuestion("");
-    setPendingQuestion(question);
-    setStreamingAnswer({ answer: "", sources: [] });
-    setStreamingStatus(mode === "document" ? "正在检索文档片段..." : "正在连接模型...");
+    setStreamingAnswer("");
+    setStreamingStatus("");
+
+    const recentHistory: ChatMessage[] = history.flatMap((item) => [
+      { role: "user", content: item.question },
+      { role: "assistant", content: item.answer },
+    ]);
 
     let answer = "";
-    let sources: QueryResponse["sources"] = [];
-    let streamError = "";
 
     try {
-      const recentHistory = buildRecentHistory(history, mode);
-      const onEvent = (event: {
-        type: string;
-        text?: string;
-        sources?: QueryResponse["sources"];
-        message?: string;
-      }) => {
-        if (event.type === "status" && event.message) {
+      await streamAgent(question, mode, null, null, recentHistory, (event: StreamEvent) => {
+        if (event.type === "status") {
           setStreamingStatus(event.message);
           return;
         }
 
-        if (event.type === "sources" && event.sources) {
-          sources = event.sources;
-          setStreamingStatus("已找到相关片段，正在生成回答...");
-          setStreamingAnswer((prev) => ({
-            answer: prev?.answer ?? "",
-            sources,
-          }));
+        if (event.type === "thinking") {
+          setStreamingStatus(event.text);
           return;
         }
 
-        if (event.type === "delta" && event.text) {
+        if (event.type === "delta") {
           answer += event.text;
-          setStreamingStatus("");
-          setStreamingAnswer({ answer, sources });
-          return;
+          setStreamingAnswer(answer);
         }
+      });
 
-        if (event.type === "error") {
-          streamError = event.message || "请求失败";
-        }
-      };
-
-      if (mode === "document") {
-        await streamQueryDocuments(question, recentHistory, onEvent);
-      } else {
-        await streamChatWithAssistant(question, recentHistory, onEvent);
-      }
-
-      if (streamError) {
-        throw new Error(streamError);
-      }
-
-      const result = { answer, sources };
-      setData(result);
+      setHistory((prev) => [...prev, { question, answer, mode }]);
       setStatus("success");
-      setPendingQuestion("");
-      setStreamingAnswer(null);
       setStreamingStatus("");
-      setHistory((prev) => [...prev, { question, response: result, mode }]);
-      return result;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "请求失败";
-      setError(msg);
-      setFailedQuestion(question);
-      setPendingQuestion("");
-      setStreamingAnswer(null);
-      setStreamingStatus("");
+      return { answer };
+    } catch (error) {
       setStatus("error");
+      setStreamingStatus(error instanceof Error ? error.message : "Request failed");
       return null;
     }
   }
 
   function clearHistory() {
-    setData(null);
-    setError("");
     setHistory([]);
-    setPendingQuestion("");
-    setFailedQuestion("");
-    setStreamingAnswer(null);
+    setStreamingAnswer("");
     setStreamingStatus("");
     setStatus("idle");
   }
 
   return {
     status,
-    data,
-    error,
     history,
-    pendingQuestion,
-    failedQuestion,
     streamingAnswer,
     streamingStatus,
     ask,
     clearHistory,
-    setPendingQuestion,
   };
 }

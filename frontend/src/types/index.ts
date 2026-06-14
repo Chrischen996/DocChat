@@ -19,9 +19,14 @@ export interface TemplateListResponse {
 }
 
 export interface SourceNode {
+  source_id?: string | null;
   text: string;
   score: number | null;
   file_name: string | null;
+  document_title?: string | null;
+  chunk_index?: number | null;
+  page_number?: number | null;
+  file_path?: string | null;
 }
 
 export interface QueryResponse {
@@ -29,7 +34,7 @@ export interface QueryResponse {
   sources: SourceNode[];
 }
 
-export type AssistantMode = "assistant" | "document" | "image";
+export type ChatMode = "rag" | "agent" | "deep_research";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -81,27 +86,89 @@ export interface GeneratedAsset {
 export interface AgentRequest {
   input: string;
   template_id?: string | null;
+  mode?: ChatMode;
+  model?: string | null;
   history?: ChatMessage[];
+}
+
+export interface ModelOption {
+  id: string;
+  label: string;
+  provider: string;
+  description?: string;
 }
 
 export interface AgentResponse {
   answer: string;
   sources: SourceNode[];
   asset: GeneratedAsset | null;
-  mode: AssistantMode | string;
+  mode: ChatMode | string;
   total_ms: number;
 }
 
-export type StreamEvent =
-  | { type: "status"; message: string }
-  | { type: "sources"; sources: SourceNode[]; retrieval_ms?: number }
+export type TraceStep =
+  | { type: "status"; message: string; mode?: string }
+  | { type: "thinking"; text: string; mode?: string }
+  | { type: "tool_start"; tool: string; input?: unknown; mode?: string }
+  | { type: "tool_result"; tool: string; output?: unknown; mode?: string }
+  | { type: "sources"; sources: SourceNode[]; retrieval_ms?: number; mode?: string }
   | { type: "delta"; text: string }
   | { type: "asset"; asset: GeneratedAsset }
   | { type: "done"; total_ms?: number }
   | { type: "error"; message: string };
 
-export type MessageItem =
-  | { role: "user"; content: string; mode?: AssistantMode }
-  | { role: "assistant"; content: string; sources?: SourceNode[] }
-  | { role: "image"; prompt: string; image_data: string; format: string }
-  | { role: "asset"; asset: GeneratedAsset };
+export type StreamEvent = TraceStep;
+
+export interface ToolCallItem {
+  id: string;
+  tool: string;
+  input?: unknown;
+  output?: unknown;
+  status: "start" | "result";
+  ts: number;
+}
+
+export interface ThinkingStep {
+  id: string;
+  kind: "status" | "thinking";
+  text: string;
+  ts: number;
+}
+
+export interface AssistantTurn {
+  id: string;
+  role: "assistant";
+  content: string;
+  sources: SourceNode[];
+  steps: ThinkingStep[];
+  toolCalls: ToolCallItem[];
+  feedback?: -1 | 1;
+  feedbackTag?: string;
+  parentId?: string | null;
+  mode: ChatMode;
+  status?: "streaming" | "done" | "error";
+}
+
+export interface UserTurn {
+  id: string;
+  role: "user";
+  content: string;
+  mode: ChatMode;
+  parentId?: string | null;
+}
+
+export type ConversationTurn = UserTurn | AssistantTurn;
+
+export interface FeedbackRequest {
+  message_id: string;
+  rating: -1 | 1;
+  tag?: string | null;
+  comment?: string | null;
+  mode?: string | null;
+  source_ids?: string[];
+}
+
+export interface FeedbackResponse {
+  status: string;
+  total: number;
+}
