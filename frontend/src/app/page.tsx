@@ -14,12 +14,14 @@ import {
   GeneratedAsset,
   MessageItem,
   SourceNode,
+  StreamEvent,
   TemplateInfo,
   UploadResponse,
 } from "@/types";
 import {
   listDocuments,
   listTemplates,
+  streamChatWithAssistant,
   streamAgent,
 } from "@/lib/api";
 
@@ -127,9 +129,7 @@ export default function Home() {
     }
   }
 
-  async function handleAgentSend(input: string) {
-    if (!activeTemplate) return;
-
+  async function handleSend(input: string) {
     const history = messages
       .filter((item): item is Extract<MessageItem, { role: "user" | "assistant" }> =>
         item.role === "user" || item.role === "assistant"
@@ -144,8 +144,9 @@ export default function Home() {
       let assistantText = "";
       let assistantSources: SourceNode[] = [];
       let latestAsset: GeneratedAsset | null = null;
+      let streamError = "";
 
-      await streamAgent(input, activeTemplate.id, history, (event) => {
+      const onEvent = (event: StreamEvent) => {
         if (event.type === "status") return;
 
         if (event.type === "sources") {
@@ -158,6 +159,10 @@ export default function Home() {
 
         if (event.type === "asset") {
           latestAsset = event.asset;
+        }
+
+        if (event.type === "error") {
+          streamError = event.message || "请求失败";
         }
 
         setMessages((prev) => {
@@ -174,14 +179,24 @@ export default function Home() {
           }
           return next;
         });
-      });
+      };
+
+      if (!activeTemplate || activeTemplate.workflow_id === "assistant_plan") {
+        await streamChatWithAssistant(input, history, onEvent);
+      } else {
+        await streamAgent(input, activeTemplate.id, history, onEvent);
+      }
+
+      if (streamError) {
+        throw new Error(streamError);
+      }
 
       if (latestAsset) {
         const asset = latestAsset;
         setMessages((prev) => [...prev, { role: "asset", asset }]);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Agent 执行失败";
+      const msg = e instanceof Error ? e.message : "请求失败";
       setMessages((prev) => [...prev, { role: "assistant", content: `❌ ${msg}` }]);
     }
   }
@@ -227,7 +242,7 @@ export default function Home() {
                 loading={query.status === "loading"}
                 text={composerText}
                 onTextChange={setComposerText}
-                onSend={(text) => handleAgentSend(text)}
+                onSend={(text) => handleSend(text)}
                 onStop={() => {}}
                 uploadedFiles={uploadedFiles}
                 uploadStatus={upload.status}
@@ -306,7 +321,7 @@ export default function Home() {
             <div className="border-t border-[var(--border)] bg-[var(--bg-page)]">
               <QuerySection
                 loading={query.status === "loading"}
-                onSend={(text) => handleAgentSend(text)}
+                onSend={(text) => handleSend(text)}
                 onStop={() => {}}
                 uploadedFiles={uploadedFiles}
                 uploadStatus={upload.status}
