@@ -11,6 +11,11 @@ import {
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+
+function authHeaders(): HeadersInit {
+  return API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {};
+}
 
 async function parseError(res: Response, fallback: string) {
   const err = await res.json().catch(() => ({ detail: fallback }));
@@ -24,7 +29,7 @@ async function streamNdjson(
 ) {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
 
@@ -67,6 +72,7 @@ export async function uploadFile(file: File): Promise<UploadResponse> {
 
   const res = await fetch(`${API_BASE}/api/upload`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
 
@@ -84,7 +90,7 @@ export async function queryDocuments(
 ): Promise<QueryResponse> {
   const res = await fetch(`${API_BASE}/api/query`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       question,
       collection_name: collectionName,
@@ -105,7 +111,7 @@ export async function chatWithAssistant(
 ): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ message, history }),
   });
 
@@ -151,7 +157,7 @@ export async function generateImage(
 ): Promise<{ image_data: string; format: string }> {
   const res = await fetch(`${API_BASE}/api/generate-image`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ prompt }),
   });
 
@@ -163,7 +169,7 @@ export async function generateImage(
 }
 
 export async function listDocuments(): Promise<DocumentListResponse> {
-  const res = await fetch(`${API_BASE}/api/documents`);
+  const res = await fetch(`${API_BASE}/api/documents`, { headers: authHeaders() });
 
   if (!res.ok) {
     throw new Error(await parseError(res, "Failed to load documents"));
@@ -173,7 +179,7 @@ export async function listDocuments(): Promise<DocumentListResponse> {
 }
 
 export async function listTemplates(): Promise<TemplateListResponse> {
-  const res = await fetch(`${API_BASE}/api/templates`);
+  const res = await fetch(`${API_BASE}/api/templates`, { headers: authHeaders() });
 
   if (!res.ok) {
     throw new Error(await parseError(res, "Failed to load templates"));
@@ -189,7 +195,7 @@ export async function runAgent(
 ): Promise<AgentResponse> {
   const res = await fetch(`${API_BASE}/api/agent/run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ input, template_id: templateId, history } satisfies AgentRequest),
   });
 
@@ -216,6 +222,7 @@ export async function streamAgent(
 export async function deleteDocument(fileName: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/documents/${encodeURIComponent(fileName)}`, {
     method: "DELETE",
+    headers: authHeaders(),
   });
 
   if (!res.ok) {

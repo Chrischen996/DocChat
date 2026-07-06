@@ -40,6 +40,14 @@ def init_qdrant(
 
     if url:
         _qdrant_client = QdrantClient(url=url)
+        try:
+            _qdrant_client.get_collections()
+        except Exception as exc:
+            _qdrant_client = None
+            raise RuntimeError(
+                f"Unable to connect to external Qdrant at {url}. "
+                "Start Qdrant or set QDRANT_URL to a reachable service."
+            ) from exc
         _qdrant_source = url
     else:
         qdrant_path = path or QDRANT_STORAGE_PATH

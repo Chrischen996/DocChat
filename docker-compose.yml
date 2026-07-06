@@ -1,4 +1,21 @@
 services:
+  backend:
+    image: python:3.11-slim
+    container_name: docchat-backend
+    working_dir: /app/backend
+    volumes:
+      - .:/app
+    env_file:
+      - backend/.env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python main.py"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - qdrant
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: chatpdf-qdrant

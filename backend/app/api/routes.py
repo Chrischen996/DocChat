@@ -4,9 +4,10 @@ import shutil
 from functools import partial
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
+from app.core.auth import verify_api_key
 from app.core.metadata_store import add_document, delete_document as delete_doc_meta, list_documents
 from app.core.asset_store import list_assets
 from app.core.template_store import ensure_templates, list_templates
@@ -67,7 +68,12 @@ async def get_generated_assets():
     )
 
 
-@router.post("/agent/run", response_model=AgentResponse, summary="执行 Agent 工作流")
+@router.post(
+    "/agent/run",
+    response_model=AgentResponse,
+    summary="执行 Agent 工作流",
+    dependencies=[Depends(verify_api_key)],
+)
 async def run_agent_workflow(request: AgentRequest):
     if not request.input.strip():
         raise HTTPException(status_code=400, detail="输入不能为空")
@@ -99,7 +105,11 @@ async def run_agent_workflow(request: AgentRequest):
         raise HTTPException(status_code=500, detail=f"Agent 执行失败: {str(e)}") from e
 
 
-@router.post("/agent/stream", summary="流式执行 Agent 工作流")
+@router.post(
+    "/agent/stream",
+    summary="流式执行 Agent 工作流",
+    dependencies=[Depends(verify_api_key)],
+)
 async def stream_agent_workflow(request: AgentRequest):
     if not request.input.strip():
         raise HTTPException(status_code=400, detail="输入不能为空")
@@ -120,7 +130,12 @@ async def stream_agent_workflow(request: AgentRequest):
     )
 
 
-@router.post("/upload", response_model=UploadResponse, summary="上传并索引文档")
+@router.post(
+    "/upload",
+    response_model=UploadResponse,
+    summary="上传并索引文档",
+    dependencies=[Depends(verify_api_key)],
+)
 async def upload_document(file: UploadFile = File(...)):
     """
     接收支持的文档文件，保存到 data/raw，解析为 Markdown，切分嵌入后存入 Qdrant。
@@ -302,7 +317,12 @@ async def get_documents():
     )
 
 
-@router.delete("/documents/{file_name:path}", response_model=DeleteResponse, summary="删除文档")
+@router.delete(
+    "/documents/{file_name:path}",
+    response_model=DeleteResponse,
+    summary="删除文档",
+    dependencies=[Depends(verify_api_key)],
+)
 async def delete_document(file_name: str):
     """
     删除指定文档的：
@@ -343,7 +363,12 @@ async def delete_document(file_name: str):
     )
 
 
-@router.post("/generate-image", response_model=ImageResponse, summary="文生图（Agnes Image API）")
+@router.post(
+    "/generate-image",
+    response_model=ImageResponse,
+    summary="文生图（Agnes Image API）",
+    dependencies=[Depends(verify_api_key)],
+)
 async def generate_image_endpoint(request: ImageRequest):
     """
     使用 Agnes Image API 根据文字描述生成图片。
