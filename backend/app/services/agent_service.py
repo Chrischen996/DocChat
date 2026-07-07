@@ -8,9 +8,9 @@ from langgraph.graph import END, StateGraph
 
 from app.core.asset_store import add_asset
 from app.core.agnes_client import resolve_model_capabilities
+from app.core.metadata_store import list_documents
 from app.core.qdrant_client import init_qdrant
 from app.core.agnes_llm import AgnesLLM
-from app.core.metadata_store import list_documents
 from app.core.template_store import get_template, list_templates
 from app.services.chat_service import chat_with_assistant, stream_chat_with_assistant, build_assistant_messages
 from app.services.image_service import generate_image
@@ -46,14 +46,56 @@ def _find_template(template_id: str | None, prompt: str) -> dict | None:
     return None
 
 
-def _normalize_mode(mode: str | None, workflow_id: str | None) -> str:
+def _auto_route_mode(user_input: str) -> str:
+    """Route a natural-language request to the best internal workflow."""
+    lowered = user_input.lower()
+
+    try:
+        has_documents = len(list_documents()) > 0
+    except Exception:
+        has_documents = False
+
+    image_keywords = [
+        "生成图片", "画一张", "做海报", "生成插图", "配图", "logo", "视觉图",
+        "generate image", "create image", "draw",
+    ]
+    if any(keyword in lowered for keyword in image_keywords):
+        return "image"
+
+    if has_documents:
+        document_keywords = [
+            "检索", "搜索文档", "查一下文档", "这份文件", "这个pdf", "上传的文档",
+            "合同里", "财报里", "报告中", "根据文档", "引用来源", "帮我找",
+            "总结文档", "文档", "document", "pdf", "file",
+        ]
+        if any(keyword in lowered for keyword in document_keywords):
+            deep_keywords = [
+                "对比", "多维分析", "跨章节", "深入研究", "详细分析", "找出所有",
+                "梳理风险", "全面", "深度", "compare", "comprehensive",
+            ]
+            if any(keyword in lowered for keyword in deep_keywords):
+                return "deep_research"
+            return "rag"
+
+    assistant_keywords = [
+        "帮我写", "翻译", "解释", "计划", "邮件", "write", "translate", "explain", "email",
+    ]
+    if any(keyword in lowered for keyword in assistant_keywords):
+        return "assistant"
+
+    return "agent"
+
+
+def _normalize_mode(mode: str | None, workflow_id: str | None, user_input: str | None = None) -> str:
+    if mode == "auto" or not mode:
+        return _auto_route_mode(user_input or "")
     if mode in {"rag", "agent", "deep_research", "image", "assistant"}:
         return mode
     if workflow_id == "document_summary":
         return "rag"
     if workflow_id == "image_generation":
         return "image"
-    return "agent"
+    return _auto_route_mode(user_input or "")
 
 
 def _classify_state(state: AgentState) -> AgentState:
@@ -64,7 +106,11 @@ def _classify_state(state: AgentState) -> AgentState:
     else:
         state["workflow_id"] = state.get("workflow_id") or "assistant_plan"
 
-    state["mode"] = _normalize_mode(state.get("mode"), state.get("workflow_id"))
+    state["mode"] = _normalize_mode(
+        state.get("mode"),
+        state.get("workflow_id"),
+        state["user_input"],
+    )
     state.setdefault("status", []).append(
         {
             "type": "status",
