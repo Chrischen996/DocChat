@@ -2,9 +2,9 @@ import os
 from functools import lru_cache
 
 from llama_index.core import Settings
-from llama_index.embeddings.nvidia import NVIDIAEmbedding
 
 from app.core.agnes_llm import AgnesLLM
+from app.core.local_embedding import LocalHashEmbedding
 
 
 DEFAULT_MODEL = "agnes-2.0-flash"
@@ -37,15 +37,12 @@ def init_agnes_services():
         max_tokens=4096,
     )
 
-    embed_model = NVIDIAEmbedding(
-        model="nvidia/nv-embedqa-e5-v5",
-        truncate="END",
-    )
+    embed_model = LocalHashEmbedding(embed_dim=1024)
 
     Settings.llm = llm
     Settings.embed_model = embed_model
 
-    print("[INIT] Agnes AI services initialized successfully")
+    print("[INIT] Agnes AI services initialized successfully (LLM + local embedding)")
     return llm
 
 

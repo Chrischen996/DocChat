@@ -2,7 +2,6 @@ fastapi
 uvicorn
 llama-index
 llama-index-llms-openai
-llama-index-embeddings-nvidia
 python-dotenv
 qdrant-client
 marker-pdf

@@ -13,7 +13,7 @@ import {
   UploadResponse,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 async function parseError(res: Response, fallback: string) {
   const err = await res.json().catch(() => ({ detail: fallback }));
