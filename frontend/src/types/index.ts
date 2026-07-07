@@ -34,7 +34,7 @@ export interface QueryResponse {
   sources: SourceNode[];
 }
 
-export type ChatMode = "rag" | "agent" | "deep_research" | "image" | "assistant";
+export type ChatMode = "auto" | "rag" | "agent" | "deep_research" | "image" | "assistant";
 
 export interface ChatMessage {
   role: "user" | "assistant";

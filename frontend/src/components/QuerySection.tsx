@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import UploadMenu from "@/components/UploadMenu";
-import { ChatMode, ModelOption, UploadResponse } from "@/types";
+import { ModelOption, UploadResponse } from "@/types";
 
 const ACCEPTED_EXTENSIONS = [
   ".pdf",
@@ -17,10 +17,11 @@ const ACCEPTED_EXTENSIONS = [
   ".pptx",
 ];
 
-const MODE_OPTIONS: { value: ChatMode; label: string }[] = [
-  { value: "agent", label: "Agent" },
-  { value: "rag", label: "RAG" },
-];
+// Mode selection removed - using auto routing by default
+// const MODE_OPTIONS: { value: ChatMode; label: string }[] = [
+//   { value: "agent", label: "Agent" },
+//   { value: "rag", label: "RAG" },
+// ];
 
 const MODEL_OPTIONS: ModelOption[] = [
   { id: "agnes-default", label: "Agens", provider: "Agens" },
@@ -44,8 +45,8 @@ interface QuerySectionProps {
   onPhotosSelect: (files: File[]) => void;
   text: string;
   onTextChange: (text: string) => void;
-  mode: ChatMode;
-  onModeChange: (mode: ChatMode) => void;
+  // mode: ChatMode; // Removed - using auto routing
+  // onModeChange: (mode: ChatMode) => void; // Removed - using auto routing
   model: string;
   onModelChange: (model: string) => void;
 }
@@ -60,13 +61,13 @@ export default function QuerySection({
   onPhotosSelect,
   text,
   onTextChange,
-  mode,
-  onModeChange,
+  // mode, // Removed - using auto routing
+  // onModeChange, // Removed - using auto routing
   model,
   onModelChange,
 }: QuerySectionProps) {
   const [focused, setFocused] = useState(false);
-  const [modeOpen, setModeOpen] = useState(false);
+  // const [modeOpen, setModeOpen] = useState(false); // Removed - using auto routing
   const [modelOpen, setModelOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -87,7 +88,7 @@ export default function QuerySection({
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (composerRef.current && !composerRef.current.contains(event.target as Node)) {
-        setModeOpen(false);
+        // setModeOpen(false); // Removed - using auto routing
         setModelOpen(false);
       }
     }
@@ -170,49 +171,18 @@ export default function QuerySection({
               menuAlign="start"
             />
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setModelOpen(false);
-                  setModeOpen((next) => !next);
-                }}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-surface-strong)]"
-                aria-expanded={modeOpen}
-              >
-                <span>{MODE_OPTIONS.find((item) => item.value === mode)?.label ?? "Agent"}</span>
-                <svg className="h-3.5 w-3.5 text-[var(--text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-
-              {modeOpen && (
-                <div className="absolute bottom-full left-0 z-20 mb-2 w-32 rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_8px_24px_rgba(0,0,0,0.12)] max-h-[50vh] overflow-y-auto">
-                  {MODE_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        onModeChange(option.value);
-                        setModeOpen(false);
-                      }}
-                      className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors hover:bg-[var(--accent-light)] ${
-                        mode === option.value ? "bg-[var(--accent-light)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
-                      }`}
-                    >
-                      <span>{option.label}</span>
-                      {mode === option.value && <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* Auto routing indicator - non-interactive */}
+            <div className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-sm">
+              <span className="text-xs opacity-60">Mode</span>
+              <span className="font-medium text-[var(--text-primary)]">Auto</span>
+              <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-green-500" title="Automatic routing" />
             </div>
 
             <div className="relative">
               <button
                 type="button"
                 onClick={() => {
-                  setModeOpen(false);
+                  // setModeOpen(false); // Removed - using auto routing
                   setModelOpen((next) => !next);
                 }}
                 className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-surface-strong)]"

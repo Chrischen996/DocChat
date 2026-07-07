@@ -197,7 +197,7 @@ export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadResponse[]>([]);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [activeTemplate, setActiveTemplate] = useState<TemplateInfo | null>(null);
-  const [mode, setMode] = useState<ChatMode>("agent");
+  const [mode, setMode] = useState<ChatMode>("auto");
   const [model, setModel] = useState("agnes-default");
   const [composerText, setComposerText] = useState("");
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
@@ -538,8 +538,6 @@ export default function Home() {
                       onPhotosSelect={handlePhotosSelect}
                       text={composerText}
                       onTextChange={setComposerText}
-                      mode={mode}
-                      onModeChange={setMode}
                       model={model}
                       onModelChange={setModel}
                     />
@@ -597,8 +595,6 @@ export default function Home() {
                     onPhotosSelect={handlePhotosSelect}
                     text={composerText}
                     onTextChange={setComposerText}
-                    mode={mode}
-                    onModeChange={setMode}
                     model={model}
                     onModelChange={setModel}
                   />

@@ -10,6 +10,7 @@ from app.core.asset_store import add_asset
 from app.core.agnes_client import resolve_model_capabilities
 from app.core.qdrant_client import init_qdrant
 from app.core.agnes_llm import AgnesLLM
+from app.core.metadata_store import list_documents
 from app.core.template_store import get_template, list_templates
 from app.services.chat_service import chat_with_assistant, stream_chat_with_assistant, build_assistant_messages
 from app.services.image_service import generate_image
@@ -353,12 +354,21 @@ def stream_agent(
     # Classify mode (re-use existing logic without building the full LangGraph)
     template = _find_template(template_id, user_input)
     workflow_id = template.get("workflow_id") if template else "assistant_plan"
-    resolved_mode = _normalize_mode(mode, workflow_id)
+    resolved_mode = _normalize_mode(mode, workflow_id, user_input)
     effective_template_id = template["id"] if template else template_id
 
-    route_node = _node_start("路由分析", "router", input={"mode": mode}, mode=resolved_mode)
+    route_node = _node_start(
+        "智能路由",
+        "router",
+        input={"mode": mode, "input": user_input[:100]},
+        mode=resolved_mode,
+    )
     yield route_node
-    yield _node_end(route_node, output={"mode": resolved_mode}, mode=resolved_mode)
+    yield _node_end(
+        route_node,
+        output={"routed_mode": resolved_mode, "reason": f"自动识别为 {resolved_mode}"},
+        mode=resolved_mode,
+    )
 
     # ------------------------------------------------------------------ #
     # RAG / deep_research modes                                            #
