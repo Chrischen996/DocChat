@@ -187,7 +187,7 @@ export default function QuerySection({
               </button>
 
               {modeOpen && (
-                <div className="absolute bottom-full left-0 z-20 mb-2 w-32 overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <div className="absolute bottom-full left-0 z-20 mb-2 w-32 rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_8px_24px_rgba(0,0,0,0.12)] max-h-[50vh] overflow-y-auto">
                   {MODE_OPTIONS.map((option) => (
                     <button
                       key={option.value}
@@ -225,7 +225,7 @@ export default function QuerySection({
               </button>
 
               {modelOpen && (
-                <div className="absolute bottom-full left-0 z-20 mb-2 w-64 overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <div className="absolute bottom-full left-0 z-20 mb-2 w-[min(16rem,calc(100vw-2rem))] rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_8px_24px_rgba(0,0,0,0.12)] max-h-[60vh] overflow-y-auto">
                   {Object.entries(groupedModels).map(([provider, items]) => (
                     <div key={provider} className="py-2">
                       <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
