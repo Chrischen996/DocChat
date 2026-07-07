@@ -6,24 +6,19 @@ interface AnswerDisplayProps {
   error: string;
   loadingLabel?: string;
   sourceAnchorPrefix?: string;
+  /** When true, shows a blinking cursor after the last character */
+  isStreaming?: boolean;
 }
 
 function LoadingDots({ label }: { label?: string }) {
-  const text = label || "Thinking...";
   return (
-    <div className="text-sm text-[var(--text-secondary)] flex gap-0.5">
-      {text.split("").map((char, index) => (
-        <span
-          key={index}
-          style={{
-            animation: `thinking-bounce 4s ease-in-out infinite`,
-            animationDelay: `${index * 0.12}s`,
-            display: "inline-block"
-          }}
-        >
-          {char}
-        </span>
-      ))}
+    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+      {label && <span>{label}</span>}
+      <span className="flex items-center gap-1">
+        <span className="loading-dot" />
+        <span className="loading-dot" />
+        <span className="loading-dot" />
+      </span>
     </div>
   );
 }
@@ -263,11 +258,12 @@ export default function AnswerDisplay({
   error,
   loadingLabel,
   sourceAnchorPrefix,
+  isStreaming = false,
 }: AnswerDisplayProps) {
   if (loading) {
     return (
       <div className="py-2">
-        <LoadingDots label={loadingLabel || "Thinking..."} />
+        <LoadingDots label={loadingLabel || "思考中"} />
       </div>
     );
   }
@@ -287,6 +283,7 @@ export default function AnswerDisplay({
   return (
     <div className="markdown-content text-[var(--text-primary)]">
       <MarkdownAnswer text={answer} sourceAnchorPrefix={sourceAnchorPrefix} />
+      {isStreaming && <span className="typing-cursor" aria-hidden="true" />}
     </div>
   );
 }

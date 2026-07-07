@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ToolCallItem, ThinkingStep } from "@/types";
+import { useEffect, useRef, useState } from "react";
+import { AgentStepItem } from "@/types";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
 import QuerySection from "@/components/QuerySection";
@@ -48,79 +48,105 @@ const TOOL_LABEL: Record<string, string> = {
   direct_answer: "💬 直接回答",
   retriever: "📦 检索器",
   asset: "🗂 资产",
+  router: "🔀 路由分析",
+  llm: "✍️ 生成回答",
+  assistant: "💬 助手回答",
+  image: "🎨 图片生成",
 };
 
-function ReActTrace({
-  steps,
-  toolCalls,
-}: {
-  steps: ThinkingStep[];
-  toolCalls: ToolCallItem[];
-}) {
-  const [open, setOpen] = useState(false);
-  const totalCalls = toolCalls.filter((c) => c.status === "start").length;
+const STEP_CONFIG: Record<string, { icon: string; label: string }> = {
+  router: { icon: "🔀", label: "路由分析" },
+  retriever: { icon: "📄", label: "文档检索" },
+  document_search: { icon: "📄", label: "搜索文档" },
+  document_deep_search: { icon: "🔍", label: "深度搜索" },
+  web_search: { icon: "🌐", label: "网页搜索" },
+  python: { icon: "🐍", label: "运行 Python" },
+  sql: { icon: "🧮", label: "查询数据库" },
+  browser: { icon: "🧭", label: "浏览网页" },
+  image_generate: { icon: "🎨", label: "生成图片" },
+  asset: { icon: "🗂", label: "生成资产" },
+  llm: { icon: "✍️", label: "生成回答" },
+  assistant: { icon: "💬", label: "助手回答" },
+};
+
+function formatDuration(ms?: number) {
+  if (ms === undefined || ms === null) return "";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)}s`;
+}
+
+/** Map raw English status messages from the backend to friendly Chinese */
+function localizeStatus(raw: string): string {
+  const map: Record<string, string> = {
+    "Starting agent run":              "🤔 Agent 启动中...",
+    "Starting native tool-calling agent": "🤔 工具调用 Agent 启动...",
+    "Streaming final answer":          "📝 正在输出回答...",
+    "Routing to agent workflow":       "🔀 路由到 Agent...",
+    "Routing to rag workflow":         "🔀 路由到文档检索...",
+    "Routing to assistant workflow":   "🔀 路由到助手模式...",
+    "Routing to image workflow":       "🔀 路由到图片生成...",
+  };
+  // Exact match first
+  if (map[raw]) return map[raw];
+  // Prefix patterns
+  if (raw.startsWith("Routing to")) return `🔀 ${raw.replace("Routing to", "路由到")}`;
+  if (raw.startsWith("Tool-calling agent completed")) return "✅ Agent 执行完成";
+  return raw;
+}
+
+function AgentRunPanel({ steps }: { steps: AgentStepItem[] }) {
+  if (steps.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-[var(--border)] overflow-hidden text-xs">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-[var(--accent-light)] text-[var(--text-secondary)] hover:bg-[var(--accent-soft)] transition-colors text-left"
-      >
-        <span className="text-[10px]">{open ? "▼" : "▶"}</span>
-        <span className="font-medium">推理过程</span>
-        {totalCalls > 0 && (
-          <span className="ml-1 rounded-full bg-[var(--accent-soft)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
-            {totalCalls} 次工具调用
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="px-3 py-2.5 space-y-2 bg-[var(--bg-surface)]">
-          {steps.map((step) => (
-            <div key={step.id} className="flex gap-2 items-start">
-              <span className="mt-0.5 shrink-0 text-[11px]">
-                {step.kind === "thinking" ? "💭" : "●"}
-              </span>
-              <span className="text-[var(--text-secondary)] leading-5 break-words">
-                {step.text}
+    <div className="w-full max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
+      <div className="mb-2 flex items-center gap-2 font-medium text-[var(--text-primary)]">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent)] thinking-bounce" />
+        Agent 正在处理
+      </div>
+      <div className="space-y-1.5">
+        {steps.map((step) => {
+          const key = step.tool || step.node_type;
+          const config = STEP_CONFIG[key] ?? STEP_CONFIG[step.node_type];
+          const icon = config?.icon ?? "⚙️";
+          const label = step.label || config?.label || key || "执行步骤";
+          const isRunning = step.status === "running";
+          const isError = step.status === "error";
+          return (
+            <div key={step.id} className="flex items-center gap-2 text-[var(--text-secondary)]">
+              <span className="w-4 text-center">{isError ? "✕" : isRunning ? "●" : "✓"}</span>
+              <span className="w-5 text-center">{icon}</span>
+              <span className="min-w-0 flex-1 truncate">{label}{isRunning ? "中..." : ""}</span>
+              <span className="shrink-0 tabular-nums text-[var(--text-tertiary)]">
+                {isRunning ? "运行中" : formatDuration(step.duration_ms)}
               </span>
             </div>
-          ))}
-
-          {toolCalls.map((call) => (
-            <div
-              key={call.id}
-              className="border-l-2 border-[var(--accent)] pl-2.5 space-y-0.5"
-            >
-              <div className="font-semibold text-[var(--text-primary)]">
-                {TOOL_LABEL[call.tool] ?? `🔧 ${call.tool}`}
-              </div>
-              {call.input !== undefined && call.input !== "" && (
-                <div className="text-[var(--text-secondary)] break-words">
-                  输入:{" "}
-                  {typeof call.input === "string"
-                    ? call.input
-                    : JSON.stringify(call.input, null, 2)}
-                </div>
-              )}
-              {call.status === "result" && (
-                <div className="text-green-600 dark:text-green-400 text-[10px] font-medium">
-                  ✓ 已完成
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
+  );
+}
+
+function ElapsedTimer({ active }: { active: boolean }) {
+  const [secs, setSecs] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [active]);
+
+  if (!active || secs === 0) return null;
+  return (
+    <span className="ml-1 tabular-nums text-[var(--text-tertiary)]">
+      {secs}s
+    </span>
   );
 }
 
 function AssistantMessageView({ turn }: { turn: AssistantTurn }) {
   const isStreaming = turn.status === "streaming";
-  const hasTrace =
-    !isStreaming && (turn.steps.length > 0 || turn.toolCalls.length > 0);
+  const isWaiting = isStreaming && !turn.content;   // no delta yet
   const latestStepText = turn.steps.at(-1)?.text ?? "";
   const activeToolCall = isStreaming
     ? turn.toolCalls.findLast((c) => c.status === "start")
@@ -128,7 +154,7 @@ function AssistantMessageView({ turn }: { turn: AssistantTurn }) {
 
   return (
     <div className="message-enter space-y-2">
-      {/* 流式推理中：显示当前工具/状态 */}
+      {/* 流式推理中：显示当前工具/状态 + 计时器 */}
       {isStreaming && (
         <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
           <span
@@ -146,22 +172,22 @@ function AssistantMessageView({ turn }: { turn: AssistantTurn }) {
                 : ""}
             </span>
           ) : (
-            <span>{latestStepText || "Thinking..."}</span>
+            <span>{localizeStatus(latestStepText) || "思考中..."}</span>
           )}
+          <ElapsedTimer key={`${turn.id}-${isWaiting}`} active={isWaiting} />
         </div>
       )}
 
-      {/* 完成后：可折叠的推理轨迹面板 */}
-      {hasTrace && (
-        <ReActTrace steps={turn.steps} toolCalls={turn.toolCalls} />
-      )}
+      {/* 仅运行中展示 Agent Chat 步骤；完成后隐藏过程，只保留最终答案 */}
+      {isStreaming && <AgentRunPanel steps={turn.agentSteps} />}
 
-      {/* 最终答案 */}
+      {/* 最终答案（流式时显示打字光标） */}
       <AnswerDisplay
         answer={turn.content}
-        loading={isStreaming && !turn.content}
+        loading={isWaiting}
         error=""
         sourceAnchorPrefix={turn.id}
+        isStreaming={isStreaming && !!turn.content}
       />
     </div>
   );
@@ -196,11 +222,6 @@ export default function Home() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [turns, streamError, streamingAsset]);
-
-  const lastAssistantTurn = useMemo(
-    () => [...turns].reverse().find((turn): turn is AssistantTurn => turn.role === "assistant"),
-    [turns]
-  );
 
   function buildHistory(untilTurnId?: string | null) {
     const items: ChatMessage[] = [];
@@ -259,13 +280,14 @@ export default function Home() {
       parentId: branchFromTurnId ?? currentTurnId,
     };
 
-    const assistantTurn: AssistantTurn = {
+      const assistantTurn: AssistantTurn = {
       id: assistantTurnId,
       role: "assistant",
-      content: "",
-      sources: [],
-      steps: [],
-      toolCalls: [],
+        content: "",
+        sources: [],
+        agentSteps: [],
+        steps: [],
+        toolCalls: [],
       mode,
       parentId: userTurnId,
       status: "streaming",
@@ -276,6 +298,7 @@ export default function Home() {
 
     let buffer = "";
     let sources: SourceNode[] = [];
+    let agentSteps: AgentStepItem[] = [];
     let steps: { id: string; kind: "status" | "thinking"; text: string; ts: number }[] = [];
     let toolCalls: {
       id: string;
@@ -286,6 +309,18 @@ export default function Home() {
       ts: number;
     }[] = [];
 
+    function upsertAgentStep(step: AgentStepItem) {
+      const index = agentSteps.findIndex((item) => item.node_id === step.node_id);
+      if (index >= 0) {
+        agentSteps = agentSteps.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, ...step, id: item.id } : item
+        );
+      } else {
+        agentSteps = [...agentSteps, step];
+      }
+      updateStreamingAssistant(assistantTurnId, (turn) => ({ ...turn, agentSteps: [...agentSteps] }));
+    }
+
     try {
       await streamAgent(
         normalized,
@@ -294,8 +329,53 @@ export default function Home() {
         model,
         history,
         (event: StreamEvent) => {
+          if (event.type === "node_start") {
+            upsertAgentStep({
+              id: event.node_id,
+              node_id: event.node_id,
+              node_type: event.node_type,
+              label: event.label,
+              status: "running",
+              started_at: event.started_at,
+              input: event.input,
+              tool: event.tool,
+              meta: event.meta,
+            });
+            return;
+          }
+
+          if (event.type === "node_end") {
+            upsertAgentStep({
+              id: event.node_id,
+              node_id: event.node_id,
+              node_type: event.node_type ?? "node",
+              label: event.label ?? "执行步骤",
+              status: event.status,
+              started_at: event.started_at ?? Date.now(),
+              ended_at: event.ended_at,
+              duration_ms: event.duration_ms,
+              output: event.output,
+              tool: event.tool,
+              meta: event.meta,
+            });
+            return;
+          }
+
           if (event.type === "status") {
             steps = [...steps, { id: crypto.randomUUID(), kind: "status", text: event.message, ts: Date.now() }];
+            if (event.node_id) {
+              upsertAgentStep({
+                id: event.node_id,
+                node_id: event.node_id,
+                node_type: event.node_type ?? "status",
+                label: event.label ?? localizeStatus(event.message),
+                status: event.status ?? "running",
+                started_at: event.started_at ?? Date.now(),
+                duration_ms: event.duration_ms,
+                input: event.input,
+                output: event.output,
+              });
+            }
             updateStreamingAssistant(assistantTurnId, (turn) => ({
               ...turn,
               steps: [...steps],
@@ -311,6 +391,19 @@ export default function Home() {
           }
 
           if (event.type === "tool_start") {
+            if (event.node_id) {
+              upsertAgentStep({
+                id: event.node_id,
+                node_id: event.node_id,
+                node_type: event.node_type ?? "tool",
+                label: event.label ?? TOOL_LABEL[event.tool] ?? event.tool,
+                status: "running",
+                started_at: event.started_at ?? Date.now(),
+                input: event.input,
+                tool: event.tool,
+                meta: event.meta,
+              });
+            }
             toolCalls = [
               ...toolCalls,
               {
@@ -326,6 +419,20 @@ export default function Home() {
           }
 
           if (event.type === "tool_result") {
+            if (event.node_id) {
+              upsertAgentStep({
+                id: event.node_id,
+                node_id: event.node_id,
+                node_type: event.node_type ?? "tool",
+                label: event.label ?? TOOL_LABEL[event.tool] ?? event.tool,
+                status: event.status ?? "success",
+                started_at: event.started_at ?? Date.now(),
+                duration_ms: event.duration_ms,
+                output: event.output,
+                tool: event.tool,
+                meta: event.meta,
+              });
+            }
             toolCalls = toolCalls.map((item) =>
               item.tool === event.tool && item.status === "start"
                 ? { ...item, output: event.output, status: "result" as const }
@@ -362,6 +469,7 @@ export default function Home() {
         ...turn,
         content: buffer,
         sources,
+        agentSteps,
         steps,
         toolCalls,
         status: "done",
@@ -387,8 +495,6 @@ export default function Home() {
     setStreamError("");
     setStreamingAsset(null);
   }
-
-  const assistantTurn = lastAssistantTurn;
 
   return (
     <div className="page-shell flex bg-[var(--bg-page)] text-[var(--text-primary)]">

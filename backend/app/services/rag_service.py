@@ -199,6 +199,51 @@ def _compact_sources(sources: list[dict]) -> list[dict]:
     ]
 
 
+def prepare_document_query(
+    question: str,
+    top_k: int = 3,
+    history: list[dict] | None = None,
+) -> dict:
+    """Retrieve document context and build the final RAG prompt without generating.
+
+    This separates retrieval from generation so streaming endpoints can report
+    true retrieval duration first, then stream LLM tokens in a separate node.
+    """
+    prompt, sources, retrieval_ms = _prepare_document_prompt(question, top_k, history)
+    if not sources:
+        return {
+            "prompt": "",
+            "sources": [],
+            "retrieval_ms": retrieval_ms,
+            "answer": "我没有在已上传文档中检索到足够相关的内容。可以换个更具体的问题，或确认文档已经上传并索引完成。",
+        }
+    return {
+        "prompt": prompt,
+        "sources": _compact_sources(sources),
+        "retrieval_ms": retrieval_ms,
+        "answer": "",
+    }
+
+
+def stream_document_answer(prompt: str, llm=None):
+    """Stream the RAG answer from the active LLM token-by-token.
+
+    Falls back to a single complete() call when the configured LLM does not
+    provide stream_complete().
+    """
+    active_llm = llm or Settings.llm
+
+    if hasattr(active_llm, "stream_complete"):
+        for chunk in active_llm.stream_complete(prompt):
+            delta = getattr(chunk, "delta", None)
+            if delta:
+                yield delta
+        return
+
+    response = active_llm.complete(prompt)
+    yield str(response)
+
+
 def query_documents(
     question: str,
     top_k: int = 3,
@@ -254,11 +299,14 @@ def stream_query_documents(
     """
     started_at = perf_counter()
     yield {"type": "status", "message": "正在检索文档片段..."}
-    prompt, sources, retrieval_ms = _prepare_document_prompt(question, top_k, history)
+    prepared = prepare_document_query(question, top_k, history)
+    prompt = prepared.get("prompt", "")
+    sources = prepared.get("sources", [])
+    retrieval_ms = prepared.get("retrieval_ms", 0)
 
     yield {
         "type": "sources",
-        "sources": _compact_sources(sources),
+        "sources": sources,
         "retrieval_ms": retrieval_ms,
     }
     yield {"type": "status", "message": "已找到相关片段，正在生成回答..."}
@@ -266,17 +314,14 @@ def stream_query_documents(
     if not sources:
         yield {
             "type": "delta",
-            "text": "我没有在已上传文档中检索到足够相关的内容。可以换个更具体的问题，或确认文档已经上传并索引完成。",
+            "text": prepared.get("answer", "我没有在已上传文档中检索到足够相关的内容。"),
         }
         yield {"type": "done"}
         return
 
     generation_started_at = perf_counter()
-    active_llm = llm or Settings.llm
-    for chunk in active_llm.stream_complete(prompt):
-        delta = getattr(chunk, "delta", None)
-        if delta:
-            yield {"type": "delta", "text": delta}
+    for delta in stream_document_answer(prompt, llm=llm):
+        yield {"type": "delta", "text": delta}
 
     generation_ms = int((perf_counter() - generation_started_at) * 1000)
     total_ms = int((perf_counter() - started_at) * 1000)

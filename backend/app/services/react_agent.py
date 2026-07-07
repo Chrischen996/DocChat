@@ -8,8 +8,9 @@ from typing import Any, Callable
 
 from llama_index.core import Settings
 
-from app.core.agnes_client import build_agnes_llm, init_agnes_services
+from app.core.agnes_client import build_agnes_llm, init_agnes_services, resolve_model_capabilities
 from app.core.agnes_llm import AgnesLLM
+from app.core.model_capabilities import ModelCapabilities
 from app.core.asset_store import add_asset
 from app.core.template_store import get_template
 from app.services.image_service import generate_image
@@ -350,6 +351,7 @@ def run_react_agent(
 ) -> dict[str, Any]:
     started_at = perf_counter()
     llm = _get_llm(model)
+    caps = resolve_model_capabilities(model)
     template = get_template(template_id) if template_id else None
 
     observations: list[str] = []
@@ -483,14 +485,17 @@ def run_react_agent(
             break
 
     if not final_answer:
-        final_prompt = build_react_prompt(
-            user_input,
-            history,
-            observations,
-            template,
-            force_final=True,
-        )
-        raw_output = str(llm.complete(final_prompt))
+        if isinstance(llm, AgnesLLM):
+            final_msgs = build_react_messages(
+                user_input, history, observations, template, force_final=True
+            )
+            raw_output = llm.chat_messages(final_msgs)
+        else:
+            final_prompt = build_react_prompt(
+                user_input, history, observations, template, force_final=True
+            )
+            raw_output = str(llm.complete(final_prompt))
+
         parsed = parse_react_output(raw_output)
         thought = parsed.get("thought", "")
         if thought:
@@ -518,4 +523,5 @@ def run_react_agent(
         "events": events,
         "react_steps": react_steps,
         "total_ms": total_ms,
+        "agent_mode": caps.preferred_agent_mode,
     }

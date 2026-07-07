@@ -110,11 +110,30 @@ export interface AgentResponse {
   react_steps?: unknown[];
 }
 
+export type AgentStepStatus = "running" | "success" | "error";
+
+export interface AgentStepItem {
+  id: string;
+  node_id: string;
+  node_type: string;
+  label: string;
+  status: AgentStepStatus;
+  started_at: number;
+  ended_at?: number;
+  duration_ms?: number;
+  input?: unknown;
+  output?: unknown;
+  tool?: string;
+  meta?: Record<string, unknown>;
+}
+
 export type TraceStep =
-  | { type: "status"; message: string; mode?: string }
-  | { type: "thinking"; text: string; mode?: string }
-  | { type: "tool_start"; tool: string; input?: unknown; mode?: string }
-  | { type: "tool_result"; tool: string; output?: unknown; mode?: string }
+  | { type: "status"; message: string; mode?: string; node_id?: string; node_type?: string; label?: string; status?: AgentStepStatus; started_at?: number; duration_ms?: number; input?: unknown; output?: unknown }
+  | { type: "thinking"; text: string; mode?: string; node_id?: string; node_type?: string; label?: string; status?: AgentStepStatus; started_at?: number; duration_ms?: number }
+  | { type: "node_start"; node_id: string; node_type: string; label: string; status: "running"; started_at: number; input?: unknown; tool?: string; meta?: Record<string, unknown>; mode?: string }
+  | { type: "node_end"; node_id: string; node_type?: string; label?: string; status: "success" | "error"; started_at?: number; ended_at?: number; duration_ms: number; output?: unknown; tool?: string; meta?: Record<string, unknown>; mode?: string }
+  | { type: "tool_start"; tool: string; input?: unknown; mode?: string; node_id?: string; node_type?: string; label?: string; status?: AgentStepStatus; started_at?: number; meta?: Record<string, unknown> }
+  | { type: "tool_result"; tool: string; output?: unknown; mode?: string; node_id?: string; node_type?: string; label?: string; status?: AgentStepStatus; started_at?: number; duration_ms?: number; meta?: Record<string, unknown> }
   | { type: "sources"; sources: SourceNode[]; retrieval_ms?: number; mode?: string }
   | { type: "delta"; text: string }
   | { type: "asset"; asset: GeneratedAsset }
@@ -144,6 +163,7 @@ export interface AssistantTurn {
   role: "assistant";
   content: string;
   sources: SourceNode[];
+  agentSteps: AgentStepItem[];
   steps: ThinkingStep[];
   toolCalls: ToolCallItem[];
   feedback?: -1 | 1;
