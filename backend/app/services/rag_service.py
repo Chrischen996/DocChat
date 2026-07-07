@@ -203,6 +203,7 @@ def query_documents(
     question: str,
     top_k: int = 3,
     history: list[dict] | None = None,
+    llm=None,
 ) -> dict:
     """
     基于用户问题执行 RAG 查询：检索 + 生成带引用的回答。
@@ -211,6 +212,7 @@ def query_documents(
         question: 用户提出的问题
         top_k: 检索的相关文本块数量
         history: 最近聊天上下文，用于理解追问
+        llm: 可选 LLM 实例；未传入时使用全局 Settings.llm
 
     Returns:
         包含 answer 和 sources 的字典
@@ -225,7 +227,8 @@ def query_documents(
         }
 
     generation_started_at = perf_counter()
-    response = Settings.llm.complete(prompt)
+    active_llm = llm or Settings.llm
+    response = active_llm.complete(prompt)
     generation_ms = int((perf_counter() - generation_started_at) * 1000)
     total_ms = int((perf_counter() - started_at) * 1000)
 
@@ -244,6 +247,7 @@ def stream_query_documents(
     question: str,
     top_k: int = 3,
     history: list[dict] | None = None,
+    llm=None,
 ):
     """
     流式文档查询。先产出 sources，再产出 answer delta。
@@ -268,7 +272,8 @@ def stream_query_documents(
         return
 
     generation_started_at = perf_counter()
-    for chunk in Settings.llm.stream_complete(prompt):
+    active_llm = llm or Settings.llm
+    for chunk in active_llm.stream_complete(prompt):
         delta = getattr(chunk, "delta", None)
         if delta:
             yield {"type": "delta", "text": delta}

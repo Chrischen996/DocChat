@@ -94,7 +94,10 @@ async def run_agent_workflow(request: AgentRequest):
             sources=_to_source_nodes(result.get("sources", [])),
             asset=result.get("asset"),
             mode=result.get("mode", "assistant"),
+            model=result.get("model"),
             total_ms=result.get("total_ms", 0),
+            events=result.get("events", []),
+            react_steps=result.get("react_steps", []),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent execution failed: {str(e)}") from e
@@ -243,7 +246,7 @@ async def chat(request: ChatRequest):
 
         answer = await loop.run_in_executor(
             None,
-            partial(chat_with_assistant, request.message, history=history),
+            partial(chat_with_assistant, request.message, history=history, model=request.model),
         )
         return ChatResponse(answer=answer)
     except Exception as e:
@@ -262,7 +265,7 @@ async def stream_chat(request: ChatRequest):
             yield _json_line({"type": "status", "message": "Connecting to model..."})
             from app.services.chat_service import stream_chat_with_assistant
 
-            for delta in stream_chat_with_assistant(request.message, history=history):
+            for delta in stream_chat_with_assistant(request.message, history=history, model=request.model):
                 yield _json_line({"type": "delta", "text": delta})
             yield _json_line({"type": "done"})
         except Exception as e:

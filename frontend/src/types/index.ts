@@ -34,7 +34,7 @@ export interface QueryResponse {
   sources: SourceNode[];
 }
 
-export type ChatMode = "rag" | "agent" | "deep_research";
+export type ChatMode = "rag" | "agent" | "deep_research" | "image" | "assistant";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -54,6 +54,7 @@ export interface QueryRequest {
 export interface ChatRequest {
   message: string;
   history?: ChatMessage[];
+  model?: string | null;
 }
 
 export interface DocumentInfo {
@@ -103,7 +104,10 @@ export interface AgentResponse {
   sources: SourceNode[];
   asset: GeneratedAsset | null;
   mode: ChatMode | string;
+  model?: string | null;
   total_ms: number;
+  events?: TraceStep[];
+  react_steps?: unknown[];
 }
 
 export type TraceStep =

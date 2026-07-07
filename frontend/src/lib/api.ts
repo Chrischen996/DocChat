@@ -104,12 +104,13 @@ export async function queryDocuments(
 
 export async function chatWithAssistant(
   message: string,
-  history: ChatMessage[] = []
+  history: ChatMessage[] = [],
+  model: string | null = null
 ): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, model }),
   });
 
   if (!res.ok) {
@@ -122,9 +123,10 @@ export async function chatWithAssistant(
 export async function streamChatWithAssistant(
   message: string,
   history: ChatMessage[],
+  model: string | null,
   onEvent: (event: StreamEvent) => void
 ) {
-  await streamNdjson(`${API_BASE}/api/chat/stream`, { message, history }, onEvent);
+  await streamNdjson(`${API_BASE}/api/chat/stream`, { message, history, model }, onEvent);
 }
 
 export async function streamAgent(

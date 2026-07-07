@@ -8,9 +8,10 @@ from langgraph.graph import END, StateGraph
 from app.core.asset_store import add_asset
 from app.core.qdrant_client import init_qdrant
 from app.core.template_store import get_template, list_templates
-from app.services.chat_service import chat_with_assistant, stream_chat_with_assistant
+from app.services.chat_service import chat_with_assistant
 from app.services.image_service import generate_image
 from app.services.rag_service import query_documents
+from app.services.react_agent import _get_llm, run_react_agent
 
 
 class AgentState(TypedDict, total=False):
@@ -23,6 +24,8 @@ class AgentState(TypedDict, total=False):
     sources: list[dict]
     answer: str
     asset: dict | None
+    model: str | None
+    react_steps: list[dict]
 
 
 def _find_template(template_id: str | None, prompt: str) -> dict | None:
@@ -39,7 +42,7 @@ def _find_template(template_id: str | None, prompt: str) -> dict | None:
 
 
 def _normalize_mode(mode: str | None, workflow_id: str | None) -> str:
-    if mode in {"rag", "agent", "deep_research", "image"}:
+    if mode in {"rag", "agent", "deep_research", "image", "assistant"}:
         return mode
     if workflow_id == "document_summary":
         return "rag"
@@ -68,7 +71,8 @@ def _classify_state(state: AgentState) -> AgentState:
 
 def _document_node(state: AgentState) -> AgentState:
     state.setdefault("status", []).append({"type": "thinking", "text": "Planning document retrieval."})
-    result = query_documents(state["user_input"], history=state.get("messages"))
+    llm = _get_llm(state.get("model"))
+    result = query_documents(state["user_input"], history=state.get("messages"), llm=llm)
     state["sources"] = result["sources"]
     state["answer"] = result["answer"]
     state.setdefault("status", []).append(
@@ -82,7 +86,8 @@ def _document_node(state: AgentState) -> AgentState:
 
 def _deep_research_node(state: AgentState) -> AgentState:
     state.setdefault("status", []).append({"type": "thinking", "text": "Running multi-step research."})
-    result = query_documents(state["user_input"], top_k=5, history=state.get("messages"))
+    llm = _get_llm(state.get("model"))
+    result = query_documents(state["user_input"], top_k=5, history=state.get("messages"), llm=llm)
     state["sources"] = result["sources"]
     state.setdefault("status", []).append({"type": "tool_start", "tool": "retriever", "input": state["user_input"]})
     state.setdefault("status", []).append(
@@ -121,6 +126,21 @@ def _assistant_node(state: AgentState) -> AgentState:
     return state
 
 
+def _react_node(state: AgentState) -> AgentState:
+    result = run_react_agent(
+        state["user_input"],
+        template_id=state.get("template_id"),
+        model=state.get("model"),
+        history=state.get("messages"),
+    )
+    state["answer"] = result.get("answer", "")
+    state["sources"] = result.get("sources", [])
+    state["asset"] = result.get("asset")
+    state["react_steps"] = result.get("react_steps", [])
+    state.setdefault("status", []).extend(result.get("events", []))
+    return state
+
+
 def _build_graph():
     graph = StateGraph(AgentState)
     graph.add_node("classify", _classify_state)
@@ -128,6 +148,7 @@ def _build_graph():
     graph.add_node("deep_research", _deep_research_node)
     graph.add_node("image", _image_node)
     graph.add_node("assistant", _assistant_node)
+    graph.add_node("react", _react_node)
 
     graph.set_entry_point("classify")
 
@@ -139,7 +160,9 @@ def _build_graph():
             return "document"
         if mode == "deep_research":
             return "deep_research"
-        return "assistant"
+        if mode == "assistant":
+            return "assistant"
+        return "react"
 
     graph.add_conditional_edges(
         "classify",
@@ -149,12 +172,14 @@ def _build_graph():
             "deep_research": "deep_research",
             "image": "image",
             "assistant": "assistant",
+            "react": "react",
         },
     )
     graph.add_edge("document", END)
     graph.add_edge("deep_research", END)
     graph.add_edge("image", END)
     graph.add_edge("assistant", END)
+    graph.add_edge("react", END)
     return graph.compile()
 
 
@@ -214,6 +239,7 @@ def run_agent(
         "model": model,
         "total_ms": total_ms,
         "events": result.get("status", []),
+        "react_steps": result.get("react_steps", []),
     }
     return payload
 

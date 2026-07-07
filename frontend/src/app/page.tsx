@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ToolCallItem, ThinkingStep } from "@/types";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
 import QuerySection from "@/components/QuerySection";
@@ -40,12 +41,125 @@ function normalizeSource(source: SourceNode, index: number): SourceNode {
   };
 }
 
-function AssistantMessageView({ turn }: { turn: AssistantTurn }) {
+const TOOL_LABEL: Record<string, string> = {
+  document_search: "📄 搜索文档",
+  document_deep_search: "🔍 深度搜索",
+  image_generate: "🎨 生成图片",
+  direct_answer: "💬 直接回答",
+  retriever: "📦 检索器",
+  asset: "🗂 资产",
+};
+
+function ReActTrace({
+  steps,
+  toolCalls,
+}: {
+  steps: ThinkingStep[];
+  toolCalls: ToolCallItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const totalCalls = toolCalls.filter((c) => c.status === "start").length;
+
   return (
-    <div className="message-enter">
+    <div className="rounded-xl border border-[var(--border)] overflow-hidden text-xs">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-[var(--accent-light)] text-[var(--text-secondary)] hover:bg-[var(--accent-soft)] transition-colors text-left"
+      >
+        <span className="text-[10px]">{open ? "▼" : "▶"}</span>
+        <span className="font-medium">推理过程</span>
+        {totalCalls > 0 && (
+          <span className="ml-1 rounded-full bg-[var(--accent-soft)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
+            {totalCalls} 次工具调用
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="px-3 py-2.5 space-y-2 bg-[var(--bg-surface)]">
+          {steps.map((step) => (
+            <div key={step.id} className="flex gap-2 items-start">
+              <span className="mt-0.5 shrink-0 text-[11px]">
+                {step.kind === "thinking" ? "💭" : "●"}
+              </span>
+              <span className="text-[var(--text-secondary)] leading-5 break-words">
+                {step.text}
+              </span>
+            </div>
+          ))}
+
+          {toolCalls.map((call) => (
+            <div
+              key={call.id}
+              className="border-l-2 border-[var(--accent)] pl-2.5 space-y-0.5"
+            >
+              <div className="font-semibold text-[var(--text-primary)]">
+                {TOOL_LABEL[call.tool] ?? `🔧 ${call.tool}`}
+              </div>
+              {call.input !== undefined && call.input !== "" && (
+                <div className="text-[var(--text-secondary)] break-words">
+                  输入:{" "}
+                  {typeof call.input === "string"
+                    ? call.input
+                    : JSON.stringify(call.input, null, 2)}
+                </div>
+              )}
+              {call.status === "result" && (
+                <div className="text-green-600 dark:text-green-400 text-[10px] font-medium">
+                  ✓ 已完成
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssistantMessageView({ turn }: { turn: AssistantTurn }) {
+  const isStreaming = turn.status === "streaming";
+  const hasTrace =
+    !isStreaming && (turn.steps.length > 0 || turn.toolCalls.length > 0);
+  const latestStepText = turn.steps.at(-1)?.text ?? "";
+  const activeToolCall = isStreaming
+    ? turn.toolCalls.findLast((c) => c.status === "start")
+    : null;
+
+  return (
+    <div className="message-enter space-y-2">
+      {/* 流式推理中：显示当前工具/状态 */}
+      {isStreaming && (
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent)] shrink-0"
+            style={{ animation: "thinking-bounce 1.2s ease-in-out infinite" }}
+          />
+          {activeToolCall ? (
+            <span>
+              正在调用{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {TOOL_LABEL[activeToolCall.tool] ?? activeToolCall.tool}
+              </span>
+              {typeof activeToolCall.input === "string" && activeToolCall.input
+                ? `：${activeToolCall.input.slice(0, 60)}${activeToolCall.input.length > 60 ? "…" : ""}`
+                : ""}
+            </span>
+          ) : (
+            <span>{latestStepText || "Thinking..."}</span>
+          )}
+        </div>
+      )}
+
+      {/* 完成后：可折叠的推理轨迹面板 */}
+      {hasTrace && (
+        <ReActTrace steps={turn.steps} toolCalls={turn.toolCalls} />
+      )}
+
+      {/* 最终答案 */}
       <AnswerDisplay
         answer={turn.content}
-        loading={turn.status === "streaming"}
+        loading={isStreaming && !turn.content}
         error=""
         sourceAnchorPrefix={turn.id}
       />

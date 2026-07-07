@@ -23,6 +23,7 @@ class ChatRequest(BaseModel):
 
     message: str
     history: List[ChatMessage] = []
+    model: Optional[str] = None
 
 
 class SourceNode(BaseModel):
@@ -149,7 +150,10 @@ class AgentResponse(BaseModel):
     sources: list[SourceNode]
     asset: GeneratedAsset | None = None
     mode: str = "assistant"
+    model: str | None = None
     total_ms: int = 0
+    events: list[dict] = []
+    react_steps: list[dict] = []
 
 
 class FeedbackRequest(BaseModel):
