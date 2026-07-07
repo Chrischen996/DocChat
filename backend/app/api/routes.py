@@ -1,6 +1,5 @@
 import asyncio
 import json
-import shutil
 from functools import partial
 from pathlib import Path
 
@@ -8,10 +7,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.auth import verify_api_key
-from app.core.metadata_store import add_document, delete_document as delete_doc_meta, list_documents
 from app.core.asset_store import list_assets
 from app.core.template_store import ensure_templates, list_templates
-from app.core.qdrant_client import delete_document_vectors
 from app.models.schemas import (
     AgentRequest,
     AgentResponse,
@@ -32,18 +29,15 @@ from app.models.schemas import (
     UploadResponse,
 )
 from app.services.agent_service import run_agent, stream_agent
-from app.services.parser import FinancialReportParser
 from app.services.chat_service import chat_with_assistant, stream_chat_with_assistant
+from app.services.document_service import document_service
 from app.services.image_service import generate_image
-from app.services.rag_service import delete_from_index, index_document, query_documents, stream_query_documents
+from app.services.rag_service import query_documents, stream_query_documents
 
 router = APIRouter()
 
 # 最大上传文件大小: 50MB
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024
-
-parser = FinancialReportParser()
-
 
 def _json_line(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
@@ -144,16 +138,16 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="文件名不能为空")
 
     # 防止路径遍历攻击
-    safe_filename = Path(file.filename).name
-    if not parser.is_supported(safe_filename):
+    safe_filename = document_service.safe_filename(file.filename)
+    if not document_service.is_supported(safe_filename):
         raise HTTPException(
             status_code=400,
-            detail=f"仅支持这些文件格式: {parser.supported_extensions_text()}",
+            detail=f"仅支持这些文件格式: {document_service.supported_extensions_text()}",
         )
 
     # 检查文件大小（流式读取避免内存溢出）
     file_size = 0
-    save_path = parser.raw_dir / safe_filename
+    save_path = document_service.raw_path_for(safe_filename)
     with open(save_path, "wb") as f:
         while True:
             chunk = await file.read(64 * 1024)  # 64KB chunks
@@ -172,13 +166,9 @@ async def upload_document(file: UploadFile = File(...)):
     try:
         loop = asyncio.get_running_loop()
 
-        md_path = await loop.run_in_executor(None, partial(parser.parse_file, str(save_path)))
         chunks_count = await loop.run_in_executor(
-            None, partial(index_document, md_path, safe_filename)
+            None, partial(document_service.index_saved_file, save_path, safe_filename)
         )
-
-        # 将文档元数据持久化
-        add_document(safe_filename, chunks_count)
 
         # 上传完成后保留原始文件（可后续删除以节省空间，此处保留便于调试）
         return UploadResponse(
@@ -310,7 +300,7 @@ async def get_documents():
     返回所有已成功上传并索引的文档元数据列表。
     数据来自 metadata.json 持久化存储。
     """
-    docs = list_documents()
+    docs = document_service.list_indexed_documents()
     return DocumentListResponse(
         documents=[DocumentInfo(**d.__dict__) for d in docs],
         total=len(docs),
@@ -332,33 +322,18 @@ async def delete_document(file_name: str):
     4. data/parsed/ 中的解析后文件
     5. 全局索引缓存
     """
-    # 1. 删除 Qdrant 向量
-    vectors_deleted = delete_document_vectors(file_name)
-
-    # 2. 删除元数据
-    meta_deleted = delete_doc_meta(file_name)
-
-    # 3. 重置索引缓存
-    delete_from_index(file_name)
-
-    # 4. 删除原始文件
-    raw_file = parser.raw_dir / file_name
-    if raw_file.exists():
-        raw_file.unlink()
-
-    # 5. 删除解析后的目录
-    parsed_dir = parser.parsed_dir / Path(file_name).stem
-    if parsed_dir.exists():
-        shutil.rmtree(parsed_dir)
+    result = document_service.delete_document(file_name)
+    meta_deleted = result["meta_deleted"]
+    vectors_deleted = result["vectors_deleted"]
 
     if not meta_deleted and vectors_deleted == 0:
         raise HTTPException(
             status_code=404,
-            detail=f"未找到文档 '{file_name}'",
+            detail=f"未找到文档 '{result['file_name']}'",
         )
 
     return DeleteResponse(
-        message=f"文档 '{file_name}' 已删除，共移除 {vectors_deleted} 个向量点",
+        message=f"文档 '{result['file_name']}' 已删除，共移除 {vectors_deleted} 个向量点",
         vectors_deleted=vectors_deleted,
     )
 
